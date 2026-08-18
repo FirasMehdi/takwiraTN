@@ -6,3 +6,42 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum Role {
+  joueur
+  proprietaire
+  administrateur
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(joueur)
+  createdAt    DateTime @default(now())
+
+  profile     PlayerProfile?
+  resetTokens PasswordResetToken[]
+}
+
+model PlayerProfile {
+  userId      String  @id
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prenom      String
+  ville       String
+  poste       String?
+  niveau      String?
+  piedPrefere String?
+  telephone   String?
+  photoUrl    String?
+  bio         String?
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+}
