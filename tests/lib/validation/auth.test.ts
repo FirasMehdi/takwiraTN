@@ -63,4 +63,9 @@ describe("resetPasswordSchema", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("rejects a missing or empty token", () => {
+    const result = resetPasswordSchema.safeParse({ token: "", password: "motdepasse123" });
+    expect(result.success).toBe(false);
+  });
 });
