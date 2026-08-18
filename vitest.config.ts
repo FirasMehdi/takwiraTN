@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: "jsdom",
+    fileParallelism: false,
     setupFiles: ["./tests/setup/vitest.setup.ts"],
     env: {
       NODE_ENV: "test",
