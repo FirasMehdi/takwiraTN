@@ -8,6 +8,9 @@ export default defineConfig({
     environment: "jsdom",
     fileParallelism: false,
     setupFiles: ["./tests/setup/vitest.setup.ts"],
+    // Git worktrees live under .claude/worktrees/ inside the repo; without
+    // this, every test file is discovered twice (once per checkout).
+    exclude: ["**/node_modules/**", "**/dist/**", "**/.next/**", "**/.claude/**"],
     env: {
       NODE_ENV: "test",
       DATABASE_URL_TEST:
