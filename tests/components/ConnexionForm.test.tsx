@@ -36,8 +36,18 @@ describe("safeCallbackUrl", () => {
     expect(safeCallbackUrl("/\\evil.com")).toBe("/tableau-de-bord");
   });
 
-  it("rejects a value that doesn't start with /", () => {
-    expect(safeCallbackUrl("evil.com")).toBe("/tableau-de-bord");
+  it("normalizes a value with no leading slash to a same-origin path", () => {
+    // Not itself a redirect risk: with no scheme and no "//", this always
+    // resolves onto our own origin - just not literally the raw string.
+    expect(safeCallbackUrl("evil.com")).toBe("/evil.com");
+  });
+
+  it("rejects an embedded-tab control-character payload that normalizes to //evil.com", () => {
+    expect(safeCallbackUrl("/\t/evil.com")).toBe("/tableau-de-bord");
+  });
+
+  it("rejects an embedded-newline control-character payload that normalizes to //evil.com", () => {
+    expect(safeCallbackUrl("/\n/evil.com")).toBe("/tableau-de-bord");
   });
 });
 

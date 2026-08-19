@@ -4,15 +4,24 @@ import { useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 
-// Only honor same-origin relative paths as a post-login redirect target.
-// Anything else (absolute URLs, protocol-relative "//evil.com", or the
-// "/\evil.com" variant some browsers normalize to "//evil.com") is an
-// open-redirect vector and falls back to the default destination.
+// Only honor same-origin targets as a post-login redirect. Resolving raw
+// against a placeholder origin and comparing origins (rather than
+// string-prefix matching) rejects absolute URLs, protocol-relative
+// "//evil.com", and control-character variants (e.g. a literal tab or
+// newline in "/\t/evil.com") that WHATWG URL parsing strips, which would
+// otherwise normalize into "//evil.com" and slip past a prefix check.
 export function safeCallbackUrl(raw: string | null): string {
-  if (!raw) return "/tableau-de-bord";
-  if (!raw.startsWith("/")) return "/tableau-de-bord";
-  if (raw.startsWith("//") || raw.startsWith("/\\")) return "/tableau-de-bord";
-  return raw;
+  const fallback = "/tableau-de-bord";
+  if (!raw) return fallback;
+
+  try {
+    const placeholder = "http://localhost";
+    const url = new URL(raw, placeholder);
+    if (url.origin !== placeholder) return fallback;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return fallback;
+  }
 }
 
 export function ConnexionForm() {
