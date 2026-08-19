@@ -5,21 +5,33 @@ import { useState, type FormEvent } from "react";
 export function MotDePasseOublieForm() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
+    setMessage("");
+    setError("");
 
-    const response = await fetch("/api/mot-de-passe-oublie", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
+    try {
+      const response = await fetch("/api/mot-de-passe-oublie", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
 
-    setSubmitting(false);
-    const body = await response.json();
-    setMessage(body.message ?? "Si ce compte existe, un e-mail a été envoyé.");
+      try {
+        const body = await response.json();
+        setMessage(body.message ?? "Si ce compte existe, un e-mail a été envoyé.");
+      } catch {
+        setError("Une erreur est survenue. Veuillez réessayer.");
+      }
+    } catch {
+      setError("Une erreur est survenue. Veuillez réessayer.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -29,6 +41,7 @@ export function MotDePasseOublieForm() {
         <input
           id="email"
           type="email"
+          autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="mt-1 w-full rounded border px-3 py-2"
@@ -36,6 +49,11 @@ export function MotDePasseOublieForm() {
         />
       </div>
       {message && <p className="text-sm text-primary">{message}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-red-600">
+          {error}
+        </p>
+      )}
       <button
         type="submit"
         disabled={submitting}

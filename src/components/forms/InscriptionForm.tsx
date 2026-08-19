@@ -10,28 +10,38 @@ export function InscriptionForm() {
   const [prenom, setPrenom] = useState("");
   const [ville, setVille] = useState("");
   const [errors, setErrors] = useState<Record<string, string[]>>({});
+  const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setSubmitting(true);
     setErrors({});
+    setError("");
 
-    const response = await fetch("/api/inscription", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, prenom, ville }),
-    });
+    try {
+      const response = await fetch("/api/inscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, prenom, ville }),
+      });
 
-    setSubmitting(false);
+      if (!response.ok) {
+        try {
+          const body = await response.json();
+          setErrors(body.error ?? {});
+        } catch {
+          setError("Une erreur est survenue. Veuillez réessayer.");
+        }
+        return;
+      }
 
-    if (!response.ok) {
-      const body = await response.json();
-      setErrors(body.error ?? {});
-      return;
+      router.push("/connexion?inscription=reussie");
+    } catch {
+      setError("Une erreur est survenue. Veuillez réessayer.");
+    } finally {
+      setSubmitting(false);
     }
-
-    router.push("/connexion?inscription=reussie");
   }
 
   return (
@@ -40,6 +50,7 @@ export function InscriptionForm() {
         <label htmlFor="prenom" className="block text-sm font-medium">Prénom</label>
         <input
           id="prenom"
+          autoComplete="given-name"
           value={prenom}
           onChange={(e) => setPrenom(e.target.value)}
           className="mt-1 w-full rounded border px-3 py-2"
@@ -63,6 +74,7 @@ export function InscriptionForm() {
         <input
           id="email"
           type="email"
+          autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="mt-1 w-full rounded border px-3 py-2"
@@ -75,6 +87,7 @@ export function InscriptionForm() {
         <input
           id="password"
           type="password"
+          autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="mt-1 w-full rounded border px-3 py-2"
@@ -82,6 +95,11 @@ export function InscriptionForm() {
         />
         {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password[0]}</p>}
       </div>
+      {error && (
+        <p role="alert" className="text-sm text-red-600">
+          {error}
+        </p>
+      )}
       <button
         type="submit"
         disabled={submitting}

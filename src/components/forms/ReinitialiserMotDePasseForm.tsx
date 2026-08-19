@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export function ReinitialiserMotDePasseForm({ token }: { token: string }) {
   const router = useRouter();
@@ -14,21 +15,29 @@ export function ReinitialiserMotDePasseForm({ token }: { token: string }) {
     setSubmitting(true);
     setError("");
 
-    const response = await fetch("/api/reinitialiser-mot-de-passe", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, password }),
-    });
+    try {
+      const response = await fetch("/api/reinitialiser-mot-de-passe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, password }),
+      });
 
-    setSubmitting(false);
+      if (!response.ok) {
+        try {
+          const body = await response.json();
+          setError(body.error?.token?.[0] ?? "Une erreur est survenue.");
+        } catch {
+          setError("Une erreur est survenue. Veuillez réessayer.");
+        }
+        return;
+      }
 
-    if (!response.ok) {
-      const body = await response.json();
-      setError(body.error?.token?.[0] ?? "Une erreur est survenue.");
-      return;
+      router.push("/connexion?reinitialisation=reussie");
+    } catch {
+      setError("Une erreur est survenue. Veuillez réessayer.");
+    } finally {
+      setSubmitting(false);
     }
-
-    router.push("/connexion?reinitialisation=reussie");
   }
 
   return (
@@ -38,13 +47,21 @@ export function ReinitialiserMotDePasseForm({ token }: { token: string }) {
         <input
           id="password"
           type="password"
+          autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="mt-1 w-full rounded border px-3 py-2"
           required
         />
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <div role="alert" className="flex flex-col gap-1">
+          <p className="text-sm text-red-600">{error}</p>
+          <Link href="/mot-de-passe-oublie" className="text-sm text-primary hover:underline">
+            Redemander un lien de réinitialisation
+          </Link>
+        </div>
+      )}
       <button
         type="submit"
         disabled={submitting}

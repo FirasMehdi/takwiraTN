@@ -46,4 +46,20 @@ describe("InscriptionForm", () => {
 
     expect(await screen.findByText("Cet e-mail est déjà utilisé")).toBeInTheDocument();
   });
+
+  it("shows an error and re-enables the button when the network call rejects", async () => {
+    vi.mocked(global.fetch).mockRejectedValue(new Error("network down"));
+
+    render(<InscriptionForm />);
+    fireEvent.change(screen.getByLabelText("Prénom"), { target: { value: "Sami" } });
+    fireEvent.change(screen.getByLabelText("Ville"), { target: { value: "Tunis" } });
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "sami@example.com" } });
+    fireEvent.change(screen.getByLabelText("Mot de passe"), { target: { value: "motdepasse123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Créer mon compte" }));
+
+    expect(
+      await screen.findByText("Une erreur est survenue. Veuillez réessayer.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Créer mon compte" })).not.toBeDisabled();
+  });
 });

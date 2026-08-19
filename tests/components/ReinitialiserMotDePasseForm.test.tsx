@@ -51,5 +51,23 @@ describe("ReinitialiserMotDePasseForm", () => {
     expect(
       await screen.findByText("Ce lien n'est plus valide, veuillez en redemander un.")
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Redemander un lien de réinitialisation" })
+    ).toHaveAttribute("href", "/mot-de-passe-oublie");
+  });
+
+  it("shows an error and re-enables the button when the network call rejects", async () => {
+    vi.mocked(global.fetch).mockRejectedValue(new Error("network down"));
+
+    render(<ReinitialiserMotDePasseForm token="abc123" />);
+    fireEvent.change(screen.getByLabelText("Nouveau mot de passe"), {
+      target: { value: "nouveaumdp1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Réinitialiser" }));
+
+    expect(
+      await screen.findByText("Une erreur est survenue. Veuillez réessayer.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Réinitialiser" })).not.toBeDisabled();
   });
 });

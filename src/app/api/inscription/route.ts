@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 import { signupSchema } from "@/lib/validation/auth";
+import { parseJsonBody } from "@/lib/api/parseJsonBody";
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const parsed = signupSchema.safeParse(body);
+  const parsedBody = await parseJsonBody(request);
+  if (!parsedBody.ok) return parsedBody.response;
+
+  const parsed = signupSchema.safeParse(parsedBody.data);
 
   if (!parsed.success) {
     return NextResponse.json(

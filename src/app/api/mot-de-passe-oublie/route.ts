@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { forgotPasswordSchema } from "@/lib/validation/auth";
 import { createPasswordResetToken } from "@/lib/resetToken";
+import { parseJsonBody } from "@/lib/api/parseJsonBody";
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const parsed = forgotPasswordSchema.safeParse(body);
+  const parsedBody = await parseJsonBody(request);
+  if (!parsedBody.ok) return parsedBody.response;
+
+  const parsed = forgotPasswordSchema.safeParse(parsedBody.data);
 
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });

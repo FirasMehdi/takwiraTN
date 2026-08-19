@@ -54,4 +54,30 @@ describe("POST /api/inscription", () => {
     const response = await POST(makeRequest({ email: "pas-un-email", password: "123" }));
     expect(response.status).toBe(400);
   });
+
+  it("returns 400 instead of throwing on malformed JSON", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/inscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{ not valid json",
+      })
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("normalizes e-mail case so mixed-case signup can log in with lowercase e-mail", async () => {
+    const response = await POST(
+      makeRequest({
+        email: "Mixed.Case@Example.com",
+        password: "motdepasse123",
+        prenom: "Sami",
+        ville: "Tunis",
+      })
+    );
+    expect(response.status).toBe(201);
+
+    const user = await prisma.user.findUnique({ where: { email: "mixed.case@example.com" } });
+    expect(user).not.toBeNull();
+  });
 });

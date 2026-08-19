@@ -81,4 +81,38 @@ describe("/api/profil", () => {
     const response = await PUT(makePutRequest({ prenom: "", ville: "Sousse" }));
     expect(response.status).toBe(400);
   });
+
+  it("clears a previously-set optional field when sent as null", async () => {
+    const user = await prisma.user.create({
+      data: {
+        email: "profil4@example.com",
+        passwordHash: await hashPassword("motdepasse123"),
+        profile: { create: { prenom: "Amine", ville: "Sousse", poste: "milieu" } },
+      },
+    });
+    vi.mocked(getServerSession).mockResolvedValue({ user: { id: user.id } } as never);
+
+    const response = await PUT(
+      makePutRequest({ prenom: "Amine", ville: "Sousse", poste: null })
+    );
+    expect(response.status).toBe(200);
+
+    const profile = await prisma.playerProfile.findUniqueOrThrow({
+      where: { userId: user.id },
+    });
+    expect(profile.poste).toBeNull();
+  });
+
+  it("returns 400 when the request body is malformed JSON", async () => {
+    vi.mocked(getServerSession).mockResolvedValue({ user: { id: "someone" } } as never);
+
+    const response = await PUT(
+      new Request("http://localhost/api/profil", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: "{ not valid json",
+      })
+    );
+    expect(response.status).toBe(400);
+  });
 });

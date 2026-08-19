@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { resetDb } from "../setup/testDb";
 import { hashPassword, verifyPassword } from "@/lib/password";
-import { createPasswordResetToken } from "@/lib/resetToken";
+import { createPasswordResetToken, consumePasswordResetToken } from "@/lib/resetToken";
 import { POST } from "@/app/api/reinitialiser-mot-de-passe/route";
 
 function makeRequest(body: unknown) {
@@ -54,5 +54,30 @@ describe("POST /api/reinitialiser-mot-de-passe", () => {
   it("rejects an invalid payload", async () => {
     const response = await POST(makeRequest({ token: "", password: "123" }));
     expect(response.status).toBe(400);
+  });
+
+  it("returns 400 instead of throwing on malformed JSON", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/reinitialiser-mot-de-passe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{ not valid json",
+      })
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("invalidates the user's other outstanding reset tokens after a successful reset", async () => {
+    const user = await prisma.user.create({
+      data: { email: "multi@example.com", passwordHash: await hashPassword("ancienmdp1") },
+    });
+    const tokenA = await createPasswordResetToken(user.id);
+    const tokenB = await createPasswordResetToken(user.id);
+
+    const response = await POST(makeRequest({ token: tokenA, password: "nouveaumdp1" }));
+    expect(response.status).toBe(200);
+
+    const resultB = await consumePasswordResetToken(tokenB);
+    expect(resultB.valid).toBe(false);
   });
 });
