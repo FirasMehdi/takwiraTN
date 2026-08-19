@@ -4,6 +4,17 @@ import { useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 
+// Only honor same-origin relative paths as a post-login redirect target.
+// Anything else (absolute URLs, protocol-relative "//evil.com", or the
+// "/\evil.com" variant some browsers normalize to "//evil.com") is an
+// open-redirect vector and falls back to the default destination.
+export function safeCallbackUrl(raw: string | null): string {
+  if (!raw) return "/tableau-de-bord";
+  if (!raw.startsWith("/")) return "/tableau-de-bord";
+  if (raw.startsWith("//") || raw.startsWith("/\\")) return "/tableau-de-bord";
+  return raw;
+}
+
 export function ConnexionForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -25,8 +36,7 @@ export function ConnexionForm() {
         return;
       }
 
-      const callbackUrl = searchParams?.get("callbackUrl");
-      router.push(callbackUrl || "/tableau-de-bord");
+      router.push(safeCallbackUrl(searchParams?.get("callbackUrl") ?? null));
     } catch {
       setError("Une erreur est survenue. Veuillez réessayer.");
     } finally {
