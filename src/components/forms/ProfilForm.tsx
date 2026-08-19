@@ -22,6 +22,7 @@ export function ProfilForm({ profile }: { profile: Profile }) {
   const [bio, setBio] = useState(profile.bio ?? "");
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
@@ -29,30 +30,39 @@ export function ProfilForm({ profile }: { profile: Profile }) {
     setSubmitting(true);
     setErrors({});
     setMessage("");
+    setError("");
 
-    const response = await fetch("/api/profil", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prenom,
-        ville,
-        poste: poste || undefined,
-        niveau: niveau || undefined,
-        piedPrefere: piedPrefere || undefined,
-        telephone: telephone || undefined,
-        bio: bio || undefined,
-      }),
-    });
+    try {
+      const response = await fetch("/api/profil", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prenom,
+          ville,
+          poste: poste || null,
+          niveau: niveau || null,
+          piedPrefere: piedPrefere || null,
+          telephone: telephone || null,
+          bio: bio || null,
+        }),
+      });
 
-    setSubmitting(false);
+      if (!response.ok) {
+        try {
+          const body = await response.json();
+          setErrors(body.error ?? {});
+        } catch {
+          setError("Une erreur est survenue. Veuillez réessayer.");
+        }
+        return;
+      }
 
-    if (!response.ok) {
-      const body = await response.json();
-      setErrors(body.error ?? {});
-      return;
+      setMessage("Profil mis à jour.");
+    } catch {
+      setError("Une erreur est survenue. Veuillez réessayer.");
+    } finally {
+      setSubmitting(false);
     }
-
-    setMessage("Profil mis à jour.");
   }
 
   return (
@@ -61,6 +71,7 @@ export function ProfilForm({ profile }: { profile: Profile }) {
         <label htmlFor="prenom" className="block text-sm font-medium">Prénom</label>
         <input
           id="prenom"
+          autoComplete="given-name"
           value={prenom}
           onChange={(e) => setPrenom(e.target.value)}
           className="mt-1 w-full rounded border px-3 py-2"
@@ -126,6 +137,7 @@ export function ProfilForm({ profile }: { profile: Profile }) {
         <label htmlFor="telephone" className="block text-sm font-medium">Téléphone</label>
         <input
           id="telephone"
+          autoComplete="tel"
           value={telephone}
           onChange={(e) => setTelephone(e.target.value)}
           className="mt-1 w-full rounded border px-3 py-2"
@@ -139,10 +151,16 @@ export function ProfilForm({ profile }: { profile: Profile }) {
           onChange={(e) => setBio(e.target.value)}
           className="mt-1 w-full rounded border px-3 py-2"
           rows={3}
+          maxLength={500}
         />
         {errors.bio && <p className="mt-1 text-sm text-red-600">{errors.bio[0]}</p>}
       </div>
       {message && <p className="text-sm text-primary">{message}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-red-600">
+          {error}
+        </p>
+      )}
       <button
         type="submit"
         disabled={submitting}

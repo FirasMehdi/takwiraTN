@@ -29,4 +29,20 @@ describe("profilSchema", () => {
     const result = profilSchema.safeParse({ ville: "Sousse" });
     expect(result.success).toBe(false);
   });
+
+  it("accepts an explicit null to clear an optional field", () => {
+    const result = profilSchema.safeParse({
+      prenom: "Amine",
+      ville: "Sousse",
+      poste: null,
+      niveau: null,
+      piedPrefere: null,
+      telephone: null,
+      bio: null,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.poste).toBeNull();
+    }
+  });
 });
