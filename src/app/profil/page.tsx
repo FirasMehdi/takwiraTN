@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ProfilForm } from "@/components/forms/ProfilForm";
+import { DeconnexionButton } from "@/components/auth/DeconnexionButton";
 
 export default async function ProfilPage() {
   const session = await getServerSession(authOptions);
@@ -22,6 +23,9 @@ export default async function ProfilPage() {
     <main className="px-4 py-6">
       <h1 className="text-center text-xl font-semibold">Mon profil</h1>
       <ProfilForm profile={profile} />
+      <div className="px-4 pb-6">
+        <DeconnexionButton />
+      </div>
     </main>
   );
 }

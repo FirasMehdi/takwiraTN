@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 
 export function ConnexionForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -16,15 +17,21 @@ export function ConnexionForm() {
     setSubmitting(true);
     setError("");
 
-    const result = await signIn("credentials", { email, password, redirect: false });
-    setSubmitting(false);
+    try {
+      const result = await signIn("credentials", { email, password, redirect: false });
 
-    if (result?.error) {
-      setError("Identifiants invalides");
-      return;
+      if (result?.error) {
+        setError("Identifiants invalides");
+        return;
+      }
+
+      const callbackUrl = searchParams?.get("callbackUrl");
+      router.push(callbackUrl || "/tableau-de-bord");
+    } catch {
+      setError("Une erreur est survenue. Veuillez réessayer.");
+    } finally {
+      setSubmitting(false);
     }
-
-    router.push("/tableau-de-bord");
   }
 
   return (
@@ -34,8 +41,12 @@ export function ConnexionForm() {
         <input
           id="email"
           type="email"
+          autoComplete="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setError("");
+          }}
           className="mt-1 w-full rounded border px-3 py-2"
           required
         />
@@ -45,13 +56,21 @@ export function ConnexionForm() {
         <input
           id="password"
           type="password"
+          autoComplete="current-password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            setError("");
+          }}
           className="mt-1 w-full rounded border px-3 py-2"
           required
         />
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-red-600">
+          {error}
+        </p>
+      )}
       <button
         type="submit"
         disabled={submitting}
