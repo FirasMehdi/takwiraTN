@@ -5,6 +5,7 @@ import { hashPassword } from "@/lib/password";
 import {
   createPasswordResetToken,
   consumePasswordResetToken,
+  hashToken,
 } from "@/lib/resetToken";
 
 async function createTestUser(email: string) {
@@ -42,10 +43,27 @@ describe("password reset tokens", () => {
     const user = await createTestUser("expired@example.com");
     const token = "expired-token-123";
     await prisma.passwordResetToken.create({
-      data: { userId: user.id, token, expiresAt: new Date(Date.now() - 1000) },
+      data: {
+        userId: user.id,
+        tokenHash: hashToken(token),
+        expiresAt: new Date(Date.now() - 1000),
+      },
     });
 
     const result = await consumePasswordResetToken(token);
     expect(result).toEqual({ valid: false, reason: "expired" });
+  });
+
+  it("stores only a hash, never the raw token", async () => {
+    const user = await createTestUser("hash@example.com");
+    const token = await createPasswordResetToken(user.id);
+
+    const stored = await prisma.passwordResetToken.findFirstOrThrow({
+      where: { userId: user.id },
+    });
+
+    // A database snapshot must not hand an attacker a working reset link.
+    expect(stored.tokenHash).not.toBe(token);
+    expect(stored.tokenHash).toBe(hashToken(token));
   });
 });

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { forgotPasswordSchema } from "@/lib/validation/auth";
 import { createPasswordResetToken } from "@/lib/resetToken";
 import { parseJsonBody } from "@/lib/api/parseJsonBody";
+import { deliverPasswordResetLink } from "@/lib/mailer";
 
 export async function POST(request: Request) {
   const parsedBody = await parseJsonBody(request);
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
   if (user) {
     const token = await createPasswordResetToken(user.id);
     const resetUrl = `${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/reinitialiser-mot-de-passe/${token}`;
-    console.log(`[reset-password] lien pour ${user.email} : ${resetUrl}`);
+    deliverPasswordResetLink({ email: user.email, resetUrl });
   }
 
   return NextResponse.json({ message: "Si ce compte existe, un e-mail a été envoyé." });

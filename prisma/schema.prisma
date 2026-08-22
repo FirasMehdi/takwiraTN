@@ -38,10 +38,12 @@ model PlayerProfile {
 }
 
 model PasswordResetToken {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String    @unique
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// SHA-256 of the token we e-mail out — never the raw token, so a database
+  /// snapshot cannot be turned into working reset links.
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
 }

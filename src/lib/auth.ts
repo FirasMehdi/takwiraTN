@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 import { loginSchema } from "@/lib/validation/auth";
+import { resolveAuthSecret } from "@/lib/env";
 
 export async function authorizeCredentials(
   credentials: Record<string, string> | undefined
@@ -21,7 +22,7 @@ export async function authorizeCredentials(
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: resolveAuthSecret(),
   pages: {
     signIn: "/connexion",
   },

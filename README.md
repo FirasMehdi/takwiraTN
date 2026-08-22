@@ -33,3 +33,18 @@ npm run build   # build de production
 En développement, les liens de réinitialisation de mot de passe sont
 affichés dans la console du serveur (pas d'envoi d'e-mail réel pour
 l'instant).
+
+## Avant une mise en production
+
+Ce projet est en phase de développement local. Certains points de sécurité
+ont été **volontairement reportés** et doivent être traités avant toute mise
+en ligne : voir **[`docs/pre-production-checklist.md`](docs/pre-production-checklist.md)**.
+
+Les deux plus importants :
+
+- **Générez un vrai `NEXTAUTH_SECRET`** (`openssl rand -base64 32`).
+  L'application refuse de démarrer en production avec la valeur d'exemple.
+- **Configurez un fournisseur d'e-mail.** Sans cela, la réinitialisation de
+  mot de passe ne fonctionne pas en production : le lien n'est jamais
+  journalisé hors développement, précisément pour ne pas exposer un accès
+  aux comptes dans les logs.
