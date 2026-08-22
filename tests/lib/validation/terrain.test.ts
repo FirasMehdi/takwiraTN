@@ -45,6 +45,33 @@ describe("terrainListQuerySchema", () => {
     const result = terrainListQuerySchema.safeParse({ prixMax: "-1" });
     expect(result.success).toBe(false);
   });
+
+  it("rejects an empty ville with a French error message", () => {
+    const result = terrainListQuerySchema.safeParse({ ville: "" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const villeError = result.error.issues.find((issue) => issue.path[0] === "ville");
+      expect(villeError?.message).toBe("La ville ne peut pas être vide");
+    }
+  });
+
+  it("rejects whitespace-only ville with a French error message", () => {
+    const result = terrainListQuerySchema.safeParse({ ville: "   " });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const villeError = result.error.issues.find((issue) => issue.path[0] === "ville");
+      expect(villeError?.message).toBe("La ville ne peut pas être vide");
+    }
+  });
+
+  it("rejects non-numeric prixMax with a French error message", () => {
+    const result = terrainListQuerySchema.safeParse({ prixMax: "abc" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const prixMaxError = result.error.issues.find((issue) => issue.path[0] === "prixMax");
+      expect(prixMaxError?.message).toBe("Le prix doit être un nombre valide");
+    }
+  });
 });
 
 describe("terrainDetailQuerySchema", () => {
@@ -61,5 +88,20 @@ describe("terrainDetailQuerySchema", () => {
   it("rejects a malformed date", () => {
     const result = terrainDetailQuerySchema.safeParse({ date: "pas-une-date" });
     expect(result.success).toBe(false);
+  });
+
+  it("rejects calendar-invalid date: February 30th", () => {
+    const result = terrainDetailQuerySchema.safeParse({ date: "2026-02-30" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects calendar-invalid date: April 31st", () => {
+    const result = terrainDetailQuerySchema.safeParse({ date: "2026-04-31" });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a valid leap day", () => {
+    const result = terrainDetailQuerySchema.safeParse({ date: "2028-02-29" });
+    expect(result.success).toBe(true);
   });
 });
