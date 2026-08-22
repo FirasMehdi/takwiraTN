@@ -19,6 +19,7 @@ cp .env.test.example .env.test
 docker compose up -d
 npm run db:migrate       # applique le schéma sur la base de dev
 npm run db:migrate:test  # applique le schéma sur la base de test
+npm run db:seed          # insère des terrains de démonstration
 ```
 
 ## Développement
