@@ -1,4 +1,5 @@
 import { PrismaClient, type Prisma } from "@prisma/client";
+import { fileURLToPath } from "node:url";
 
 type Client = PrismaClient | Prisma.TransactionClient;
 
@@ -52,7 +53,7 @@ const TERRAINS = [
     prixParCreneau: 80000,
     dureeCreneauMinutes: 60,
     equipements: ["vestiaires", "eclairage", "buvette"],
-    horaires: horaires(TOUS_LES_JOURS, "10:00", "00:00"),
+    horaires: horaires(TOUS_LES_JOURS, "10:00", "23:00"),
   },
   {
     nom: "Sousse Beach Arena",
@@ -104,6 +105,17 @@ async function main() {
 }
 
 // Exécuté seulement en ligne de commande, jamais à l'import depuis les tests.
-if (process.argv[1]?.includes("seed")) {
+// Comparaison de chemins normalisés (et non une simple sous-chaîne) pour que
+// ce test soit fiable indépendamment de la façon dont l'environnement de
+// test (Vitest) peuple process.argv — un faux positif ouvrirait un second
+// PrismaClient dans le process de test.
+function estExecuteDirectement(): boolean {
+  if (!process.argv[1]) return false;
+  const cheminModule = fileURLToPath(import.meta.url).replace(/\\/g, "/").toLowerCase();
+  const cheminScript = process.argv[1].replace(/\\/g, "/").toLowerCase();
+  return cheminModule === cheminScript;
+}
+
+if (estExecuteDirectement()) {
   main();
 }
