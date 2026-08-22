@@ -22,6 +22,7 @@ model User {
 
   profile     PlayerProfile?
   resetTokens PasswordResetToken[]
+  terrains    Terrain[]
 }
 
 model PlayerProfile {
@@ -46,4 +47,70 @@ model PasswordResetToken {
   tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
+}
+
+enum TerrainType {
+  gazon_synthetique
+  gazon_naturel
+  beton
+}
+
+enum TerrainFormat {
+  cinq
+  sept
+  onze
+}
+
+enum TerrainStatut {
+  actif
+  en_attente
+  suspendu
+}
+
+model Terrain {
+  id          String  @id @default(cuid())
+  nom         String
+  description String?
+  adresse     String
+  ville       String
+  latitude    Float?
+  longitude   Float?
+
+  type   TerrainType
+  format TerrainFormat
+
+  /// Prix d'un créneau, en millimes (1 TND = 1000 millimes).
+  prixParCreneau      Int
+  dureeCreneauMinutes Int @default(90)
+
+  equipements String[]
+  photos      String[]
+
+  statut TerrainStatut @default(actif)
+
+  /// Null pour les terrains de démonstration ; la gestion par le
+  /// propriétaire arrive au sous-projet 6.
+  ownerId String?
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  horaires TerrainHoraire[]
+
+  createdAt DateTime @default(now())
+
+  @@index([ville])
+  @@index([statut])
+}
+
+model TerrainHoraire {
+  id        String  @id @default(cuid())
+  terrainId String
+  terrain   Terrain @relation(fields: [terrainId], references: [id], onDelete: Cascade)
+
+  /// 0 = dimanche … 6 = samedi (aligné sur Date.getDay()).
+  jourSemaine Int
+  /// Heure locale Africa/Tunis, format "HH:MM".
+  ouvre String
+  ferme String
+
+  @@index([terrainId, jourSemaine])
 }

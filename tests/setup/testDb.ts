@@ -7,5 +7,7 @@ export async function resetDb() {
 
   await prisma.passwordResetToken.deleteMany();
   await prisma.playerProfile.deleteMany();
+  await prisma.terrainHoraire.deleteMany();
+  await prisma.terrain.deleteMany();
   await prisma.user.deleteMany();
 }
