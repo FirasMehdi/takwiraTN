@@ -11,13 +11,23 @@ export type ValeursFiltres = {
   prixMax?: string;
 };
 
+/** Millimes (stockage/URL/API) → dinars (affichage dans le champ). */
+function millimesVersDinars(millimes: string | undefined): string {
+  if (!millimes) return "";
+  const nombre = Number(millimes);
+  if (Number.isNaN(nombre)) return "";
+  return String(nombre / 1000);
+}
+
 export function TerrainFiltres({ valeurs }: { valeurs: ValeursFiltres }) {
   const router = useRouter();
   const [ville, setVille] = useState(valeurs.ville ?? "");
   const [date, setDate] = useState(valeurs.date ?? "");
   const [heure, setHeure] = useState(valeurs.heure ?? "");
   const [format, setFormat] = useState(valeurs.format ?? "");
-  const [prixMax, setPrixMax] = useState(valeurs.prixMax ?? "");
+  const [prixMaxDinars, setPrixMaxDinars] = useState(
+    millimesVersDinars(valeurs.prixMax)
+  );
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -27,7 +37,12 @@ export function TerrainFiltres({ valeurs }: { valeurs: ValeursFiltres }) {
     if (date) params.set("date", date);
     if (heure) params.set("heure", heure);
     if (format) params.set("format", format);
-    if (prixMax) params.set("prixMax", prixMax);
+
+    // Le champ affiche des dinars ; l'URL et l'API attendent des millimes.
+    const dinars = Number(prixMaxDinars);
+    if (prixMaxDinars && !Number.isNaN(dinars)) {
+      params.set("prixMax", String(Math.round(dinars * 1000)));
+    }
 
     const query = params.toString();
     router.push(query ? `/terrains?${query}` : "/terrains");
@@ -86,14 +101,14 @@ export function TerrainFiltres({ valeurs }: { valeurs: ValeursFiltres }) {
         </div>
         <div className="flex-1">
           <label htmlFor="prixMax" className="block text-sm font-medium">
-            Prix max (millimes)
+            Prix max (DT)
           </label>
           <input
             id="prixMax"
             type="number"
             min="0"
-            value={prixMax}
-            onChange={(e) => setPrixMax(e.target.value)}
+            value={prixMaxDinars}
+            onChange={(e) => setPrixMaxDinars(e.target.value)}
             className="mt-1 w-full rounded border px-3 py-2"
           />
         </div>

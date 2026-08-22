@@ -47,4 +47,21 @@ describe("TerrainCard", () => {
     render(<TerrainCard terrain={{ ...terrain, creneauxLibres: 1 }} />);
     expect(screen.getByText(/1 créneau libre/)).toBeInTheDocument();
   });
+
+  it("renders the photo with a meaningful alt when one is set", () => {
+    render(
+      <TerrainCard
+        terrain={{ ...terrain, photo: "https://example.com/photo.jpg" }}
+      />
+    );
+
+    const image = screen.getByRole("img", { name: "Complexe El Menzah" });
+    expect(image).toHaveAttribute("src", "https://example.com/photo.jpg");
+  });
+
+  it("renders a neutral placeholder (not announced as an image) when there is no photo", () => {
+    render(<TerrainCard terrain={{ ...terrain, photo: null }} />);
+
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
 });

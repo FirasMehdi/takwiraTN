@@ -35,4 +35,21 @@ describe("TerrainFiltres", () => {
 
     expect(pushMock).toHaveBeenCalledWith("/terrains");
   });
+
+  it("converts the entered dinars to millimes in the query string", () => {
+    render(<TerrainFiltres valeurs={{}} />);
+
+    fireEvent.change(screen.getByLabelText("Prix max (DT)"), {
+      target: { value: "80" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Rechercher" }));
+
+    expect(pushMock).toHaveBeenCalledWith("/terrains?prixMax=80000");
+  });
+
+  it("pre-fills the price field in dinars from a millimes URL value", () => {
+    render(<TerrainFiltres valeurs={{ prixMax: "80000" }} />);
+
+    expect(screen.getByLabelText("Prix max (DT)")).toHaveValue(80);
+  });
 });
