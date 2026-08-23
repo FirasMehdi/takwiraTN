@@ -38,5 +38,8 @@ export const resetPasswordSchema = z.object({
   token: z.string().min(1, "Le jeton est requis"),
   password: z
     .string()
-    .min(8, "Le mot de passe doit contenir au moins 8 caractères"),
+    .min(8, "Le mot de passe doit contenir au moins 8 caractères")
+    // Same reasoning as signupSchema's password field: bcrypt silently
+    // ignores bytes past the 72nd.
+    .max(72, "Le mot de passe ne peut pas dépasser 72 caractères"),
 });

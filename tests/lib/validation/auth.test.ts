@@ -150,4 +150,14 @@ describe("resetPasswordSchema", () => {
     const result = resetPasswordSchema.safeParse({ token: "", password: "motdepasse123" });
     expect(result.success).toBe(false);
   });
+
+  it("rejects a password longer than 72 characters", () => {
+    const result = resetPasswordSchema.safeParse({ token: "abc123", password: "a".repeat(73) });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a password exactly 72 characters long", () => {
+    const result = resetPasswordSchema.safeParse({ token: "abc123", password: "a".repeat(72) });
+    expect(result.success).toBe(true);
+  });
 });
