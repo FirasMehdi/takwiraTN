@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { findTerrainById } from "@/lib/terrains/queries";
 import { terrainDetailQuerySchema } from "@/lib/validation/terrain";
+import { normaliserSearchParams } from "@/lib/api/searchParams";
 
 export async function GET(
   request: Request,
@@ -8,10 +9,7 @@ export async function GET(
 ) {
   const { id } = await context.params;
   const { searchParams } = new URL(request.url);
-
-  const brut = Object.fromEntries(
-    [...searchParams.entries()].filter(([, valeur]) => valeur !== "")
-  );
+  const brut = normaliserSearchParams(searchParams);
 
   const parsed = terrainDetailQuerySchema.safeParse(brut);
   if (!parsed.success) {
