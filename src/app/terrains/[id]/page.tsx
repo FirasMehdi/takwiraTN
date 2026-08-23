@@ -151,12 +151,8 @@ export default async function TerrainDetailPage({
         </form>
 
         <div className="mt-3">
-          <CreneauxListe creneaux={terrain.creneaux} />
+          <CreneauxListe terrainId={terrain.id} date={terrain.date} creneaux={terrain.creneaux} />
         </div>
-
-        <p className="mt-3 text-xs text-gray-500">
-          La réservation en ligne arrive bientôt.
-        </p>
       </section>
     </main>
   );
