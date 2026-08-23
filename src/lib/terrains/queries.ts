@@ -71,6 +71,10 @@ export async function findTerrains(
     where,
     include: { horaires: true },
     orderBy: { nom: "asc" },
+    take: 100, // Sécurité : borne le coût de la requête et de la génération de
+               // créneaux qui suit. Ce n'est pas une pagination — juste un
+               // plafond. Une vraie pagination viendra si le catalogue dépasse
+               // ce seuil.
   });
 
   const date = query.date ? parseDateLocale(query.date) : maintenant;
