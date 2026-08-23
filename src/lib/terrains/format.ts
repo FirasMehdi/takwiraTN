@@ -1,27 +1,31 @@
+import type { TerrainFormat, TerrainType } from "@prisma/client";
+
 /** Les prix sont stockés en millimes : 1 dinar = 1000 millimes. */
 export function formatPrix(millimes: number): string {
-  const dinars = Math.floor(millimes / 1000);
-  const reste = String(millimes % 1000).padStart(3, "0");
-  return `${dinars},${reste} DT`;
+  const signe = millimes < 0 ? "-" : "";
+  const abs = Math.abs(millimes);
+  const dinars = Math.floor(abs / 1000);
+  const reste = String(abs % 1000).padStart(3, "0");
+  return `${signe}${dinars},${reste} DT`;
 }
 
-const FORMATS: Record<string, string> = {
+const FORMATS: Record<TerrainFormat, string> = {
   cinq: "5 contre 5",
   sept: "7 contre 7",
   onze: "11 contre 11",
 };
 
-export function libelleFormat(format: string): string {
+export function libelleFormat(format: TerrainFormat): string {
   return FORMATS[format] ?? format;
 }
 
-const TYPES: Record<string, string> = {
+const TYPES: Record<TerrainType, string> = {
   gazon_synthetique: "Gazon synthétique",
   gazon_naturel: "Gazon naturel",
   beton: "Béton",
 };
 
-export function libelleType(type: string): string {
+export function libelleType(type: TerrainType): string {
   return TYPES[type] ?? type;
 }
 

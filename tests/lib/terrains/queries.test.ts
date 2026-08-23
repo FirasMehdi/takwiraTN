@@ -88,6 +88,34 @@ describe("findTerrains", () => {
     const resultats = await findTerrains({ date: "2026-09-08" }, new Date(2026, 8, 8, 6, 0));
     expect(resultats[0].creneauxLibres).toBe(0);
   });
+
+  it("filters by heure — matches slots by containment, not just exact start", async () => {
+    await creerTerrain({
+      nom: "ContainmentTest",
+      horaires: { create: [{ jourSemaine: 1, ouvre: "18:00", ferme: "19:30" }] },
+    });
+
+    // 18:15 falls within the 18:00-19:30 slot
+    const resultats = await findTerrains(
+      { date: "2026-09-07", heure: "18:15" },
+      LUNDI_TOT
+    );
+    expect(resultats.map((t) => t.nom)).toEqual(["ContainmentTest"]);
+  });
+
+  it("filters by heure — excludes slots where the requested time is at or past the end", async () => {
+    await creerTerrain({
+      nom: "BoundaryTest",
+      horaires: { create: [{ jourSemaine: 1, ouvre: "18:00", ferme: "19:30" }] },
+    });
+
+    // 19:30 is the end boundary and should not match (end boundary is exclusive)
+    const resultats = await findTerrains(
+      { date: "2026-09-07", heure: "19:30" },
+      LUNDI_TOT
+    );
+    expect(resultats).toHaveLength(0);
+  });
 });
 
 describe("findTerrainById", () => {

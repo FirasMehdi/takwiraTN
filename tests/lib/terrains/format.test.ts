@@ -18,6 +18,11 @@ describe("formatPrix", () => {
   it("renders zero", () => {
     expect(formatPrix(0)).toBe("0,000 DT");
   });
+
+  it("handles negative input correctly", () => {
+    expect(formatPrix(-500)).toBe("-0,500 DT");
+    expect(formatPrix(-1000)).toBe("-1,000 DT");
+  });
 });
 
 describe("libelleFormat", () => {

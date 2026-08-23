@@ -82,5 +82,13 @@ export function generateSlots({
     }
   }
 
-  return slots;
+  const vus = new Set<string>();
+  const dedupliques: Slot[] = [];
+  for (const slot of slots) {
+    if (vus.has(slot.debut)) continue;
+    vus.add(slot.debut);
+    dedupliques.push(slot);
+  }
+
+  return dedupliques;
 }

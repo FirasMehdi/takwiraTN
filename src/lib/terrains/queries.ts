@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, TerrainFormat, TerrainType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateSlots, type Slot } from "@/lib/terrains/slots";
 import type { TerrainListQuery } from "@/lib/validation/terrain";
@@ -8,8 +8,8 @@ export type TerrainResume = {
   nom: string;
   ville: string;
   adresse: string;
-  type: string;
-  format: string;
+  type: TerrainType;
+  format: TerrainFormat;
   prixParCreneau: number;
   photo: string | null;
   creneauxLibres: number;
@@ -23,8 +23,8 @@ export type TerrainDetail = {
   ville: string;
   latitude: number | null;
   longitude: number | null;
-  type: string;
-  format: string;
+  type: TerrainType;
+  format: TerrainFormat;
   prixParCreneau: number;
   dureeCreneauMinutes: number;
   equipements: string[];
@@ -44,6 +44,11 @@ function formatDateLocale(date: Date): string {
   const mois = String(date.getMonth() + 1).padStart(2, "0");
   const jour = String(date.getDate()).padStart(2, "0");
   return `${date.getFullYear()}-${mois}-${jour}`;
+}
+
+function toMinutes(hhmm: string): number {
+  const [heures, minutes] = hhmm.split(":").map(Number);
+  return heures * 60 + minutes;
 }
 
 export async function findTerrains(
@@ -99,9 +104,12 @@ export async function findTerrains(
   // Le filtre par heure demande de connaître les créneaux : il s'applique
   // après génération, en mémoire.
   const filtres = query.heure
-    ? resumes.filter(({ creneaux }) =>
-        creneaux.some((c) => c.debut === query.heure && c.disponible)
-      )
+    ? resumes.filter(({ creneaux }) => {
+        const h = toMinutes(query.heure!);
+        return creneaux.some(
+          (c) => c.disponible && toMinutes(c.debut) <= h && h < toMinutes(c.fin)
+        );
+      })
     : resumes;
 
   return filtres.map(({ resume }) => resume);

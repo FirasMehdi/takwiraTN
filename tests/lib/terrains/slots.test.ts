@@ -138,4 +138,24 @@ describe("generateSlots", () => {
 
     expect(slots).toEqual([]);
   });
+
+  it("deduplicates slots when horaires overlap on the same day", () => {
+    const slots = generateSlots({
+      horaires: [
+        { jourSemaine: 1, ouvre: "08:00", ferme: "12:00" },
+        { jourSemaine: 1, ouvre: "10:00", ferme: "14:00" },
+      ],
+      date: LUNDI,
+      dureeCreneauMinutes: 60,
+      maintenant: TOT_LE_MATIN,
+    });
+
+    // Should have no duplicate debuts
+    const debuts = slots.map((s) => s.debut);
+    expect(new Set(debuts).size).toBe(debuts.length);
+    // Should contain slots from both windows, deduped
+    expect(debuts).toContain("08:00");
+    expect(debuts).toContain("10:00");
+    expect(debuts).toContain("11:00");
+  });
 });
