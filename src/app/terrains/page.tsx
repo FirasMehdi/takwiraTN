@@ -30,7 +30,7 @@ export default async function TerrainsPage({
     <main className="pb-4">
       <h1 className="px-4 pt-6 text-xl font-semibold">Terrains</h1>
 
-      <TerrainFiltres valeurs={brut} />
+      <TerrainFiltres key={new URLSearchParams(brut).toString()} valeurs={brut} />
 
       {!parsed.success && (
         <p role="alert" className="px-4 text-sm text-red-600">
