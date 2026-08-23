@@ -4,8 +4,18 @@ import { resetPasswordSchema } from "@/lib/validation/auth";
 import { consumePasswordResetToken } from "@/lib/resetToken";
 import { hashPassword } from "@/lib/password";
 import { parseJsonBody } from "@/lib/api/parseJsonBody";
+import { checkRateLimit, extractIp } from "@/lib/rateLimit";
 
 export async function POST(request: Request) {
+  const ip = extractIp(request.headers);
+  const limit = checkRateLimit(`reset:${ip}`, { max: 10, windowMs: 15 * 60 * 1000 });
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Trop de tentatives. Réessayez plus tard." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil(limit.retryAfterMs / 1000)) } }
+    );
+  }
+
   const parsedBody = await parseJsonBody(request);
   if (!parsedBody.ok) return parsedBody.response;
 
@@ -22,7 +32,7 @@ export async function POST(request: Request) {
 
     await tx.user.update({
       where: { id: consumed.userId },
-      data: { passwordHash },
+      data: { passwordHash, sessionVersion: { increment: 1 } },
     });
 
     // Invalidate any other outstanding reset tokens for this user so a

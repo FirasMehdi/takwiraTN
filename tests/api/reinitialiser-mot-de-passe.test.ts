@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { resetDb } from "../setup/testDb";
+import { resetRateLimits } from "@/lib/rateLimit";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { createPasswordResetToken, consumePasswordResetToken } from "@/lib/resetToken";
 import { POST } from "@/app/api/reinitialiser-mot-de-passe/route";
@@ -16,6 +17,7 @@ function makeRequest(body: unknown) {
 describe("POST /api/reinitialiser-mot-de-passe", () => {
   beforeEach(async () => {
     await resetDb();
+    resetRateLimits();
   });
 
   afterAll(async () => {
@@ -79,5 +81,23 @@ describe("POST /api/reinitialiser-mot-de-passe", () => {
 
     const resultB = await consumePasswordResetToken(tokenB);
     expect(resultB.valid).toBe(false);
+  });
+
+  it("rate limits repeated attempts from the same IP with 429 and a Retry-After header", async () => {
+    const request = () =>
+      new Request("http://localhost/api/reinitialiser-mot-de-passe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-forwarded-for": "10.0.0.2" },
+        body: JSON.stringify({ token: "inconnu", password: "nouveaumdp1" }),
+      });
+
+    for (let i = 0; i < 10; i++) {
+      const response = await POST(request());
+      expect(response.status).not.toBe(429);
+    }
+
+    const response = await POST(request());
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
   });
 });

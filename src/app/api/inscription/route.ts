@@ -3,8 +3,18 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 import { signupSchema } from "@/lib/validation/auth";
 import { parseJsonBody } from "@/lib/api/parseJsonBody";
+import { checkRateLimit, extractIp } from "@/lib/rateLimit";
 
 export async function POST(request: Request) {
+  const ip = extractIp(request.headers);
+  const limit = checkRateLimit(`inscription:${ip}`, { max: 5, windowMs: 15 * 60 * 1000 });
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: "Trop de tentatives. Réessayez plus tard." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil(limit.retryAfterMs / 1000)) } }
+    );
+  }
+
   const parsedBody = await parseJsonBody(request);
   if (!parsedBody.ok) return parsedBody.response;
 
