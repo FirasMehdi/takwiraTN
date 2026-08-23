@@ -34,7 +34,7 @@ export type TerrainDetail = {
   creneaux: Slot[];
 };
 
-/** "YYYY-MM-DD" → Date locale (midi évite tout effet de bord de fuseau). */
+/** "YYYY-MM-DD" → Date locale (minuit local, pour éviter tout aller-retour par l'UTC). */
 function parseDateLocale(valeur: string): Date {
   const [annee, mois, jour] = valeur.split("-").map(Number);
   return new Date(annee, mois - 1, jour);

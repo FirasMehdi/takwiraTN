@@ -4,7 +4,6 @@ import { resetDb } from "../../setup/testDb";
 import { findTerrains, findTerrainById } from "@/lib/terrains/queries";
 
 // 2026-09-07 is a Monday.
-const LUNDI = new Date(2026, 8, 7);
 const LUNDI_TOT = new Date(2026, 8, 7, 6, 0);
 
 async function creerTerrain(overrides: Record<string, unknown> = {}) {
