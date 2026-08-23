@@ -22,6 +22,17 @@ npm run db:migrate:test  # applique le schéma sur la base de test
 npm run db:seed          # insère des terrains de démonstration
 ```
 
+## Fuseau horaire
+
+Le processus Node **doit** démarrer avec `TZ=Africa/Tunis` défini au niveau du
+système d'exploitation (pas seulement dans `.env` : Node lit `TZ` au
+démarrage, avant que dotenv ait pu le charger). La génération des créneaux
+horaires (`src/lib/terrains/slots.ts`, `src/lib/terrains/queries.ts`) utilise
+l'heure locale du process comme heure de Tunis ; sans ce réglage, sur un hôte
+en UTC par défaut, les créneaux « déjà passés » seraient filtrés avec une
+heure de décalage et la frontière entre deux jours pourrait basculer au
+mauvais moment entre 00h00 et 01h00 (heure de Tunis).
+
 ## Développement
 
 ```bash
