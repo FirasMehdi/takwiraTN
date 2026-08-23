@@ -1,6 +1,7 @@
 import type { Prisma, TerrainFormat, TerrainType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateSlots, type Slot } from "@/lib/terrains/slots";
+import { findTakenSlots, findTakenSlotsForTerrains } from "@/lib/reservations/queries";
 import type { TerrainListQuery } from "@/lib/validation/terrain";
 
 export type TerrainResume = {
@@ -78,13 +79,15 @@ export async function findTerrains(
   });
 
   const date = query.date ? parseDateLocale(query.date) : maintenant;
+  const dateStr = formatDateLocale(date);
+  const parTerrain = await findTakenSlotsForTerrains(terrains.map((t) => t.id), dateStr);
 
   const resumes = terrains.map((terrain) => {
     const creneaux = generateSlots({
       horaires: terrain.horaires,
       date,
       dureeCreneauMinutes: terrain.dureeCreneauMinutes,
-      taken: [], // Rempli au sous-projet 3, quand les réservations existeront.
+      taken: parTerrain.get(terrain.id) ?? [],
       maintenant,
     });
 
@@ -132,6 +135,8 @@ export async function findTerrainById(
   if (!terrain) return null;
 
   const jour = date ? parseDateLocale(date) : maintenant;
+  const jourStr = formatDateLocale(jour);
+  const taken = await findTakenSlots(id, jourStr);
 
   return {
     id: terrain.id,
@@ -147,12 +152,12 @@ export async function findTerrainById(
     dureeCreneauMinutes: terrain.dureeCreneauMinutes,
     equipements: terrain.equipements,
     photos: terrain.photos,
-    date: formatDateLocale(jour),
+    date: jourStr,
     creneaux: generateSlots({
       horaires: terrain.horaires,
       date: jour,
       dureeCreneauMinutes: terrain.dureeCreneauMinutes,
-      taken: [],
+      taken,
       maintenant,
     }),
   };

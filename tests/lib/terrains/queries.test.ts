@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { resetDb } from "../../setup/testDb";
 import { findTerrains, findTerrainById } from "@/lib/terrains/queries";
+import { hashPassword } from "@/lib/password";
 
 // 2026-09-07 is a Monday.
 const LUNDI_TOT = new Date(2026, 8, 7, 6, 0);
@@ -149,5 +150,27 @@ describe("findTerrainById", () => {
 
     const resultat = await findTerrainById(terrain.id, undefined, LUNDI_TOT);
     expect(resultat?.date).toBe("2026-09-07");
+  });
+
+  it("excludes a slot taken by a real reservation", async () => {
+    const terrain = await creerTerrain({
+      nom: "AvecReservation",
+      horaires: { create: [{ jourSemaine: 1, ouvre: "18:00", ferme: "19:30" }] },
+    });
+    const user = await prisma.user.create({
+      data: { email: "resa@example.com", passwordHash: await hashPassword("motdepasse123") },
+    });
+    await prisma.reservation.create({
+      data: {
+        terrainId: terrain.id,
+        userId: user.id,
+        date: "2026-09-07",
+        heureDebut: "18:00",
+        heureFin: "19:30",
+      },
+    });
+
+    const resultat = await findTerrainById(terrain.id, "2026-09-07", LUNDI_TOT);
+    expect(resultat?.creneaux[0].disponible).toBe(false);
   });
 });
