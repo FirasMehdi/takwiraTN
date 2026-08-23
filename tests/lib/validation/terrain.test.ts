@@ -72,6 +72,28 @@ describe("terrainListQuerySchema", () => {
       expect(prixMaxError?.message).toBe("Le prix doit être un nombre valide");
     }
   });
+
+  it("rejects prixMax exceeding int32 max (2147483648)", () => {
+    const result = terrainListQuerySchema.safeParse({ prixMax: "2147483648" });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts prixMax at int32 max boundary (2147483647)", () => {
+    const result = terrainListQuerySchema.safeParse({ prixMax: "2147483647" });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects ville exceeding 80 characters", () => {
+    const longVille = "a".repeat(81);
+    const result = terrainListQuerySchema.safeParse({ ville: longVille });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts ville at 80 character boundary", () => {
+    const maxVille = "a".repeat(80);
+    const result = terrainListQuerySchema.safeParse({ ville: maxVille });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe("terrainDetailQuerySchema", () => {

@@ -25,7 +25,7 @@ export const formatSchema = z.enum(["cinq", "sept", "onze"], {
 });
 
 export const terrainListQuerySchema = z.object({
-  ville: z.string().trim().min(1, "La ville ne peut pas être vide").optional(),
+  ville: z.string().trim().min(1, "La ville ne peut pas être vide").max(80, "Le nom de la ville est trop long").optional(),
   date: dateSchema.optional(),
   heure: heureSchema.optional(),
   format: formatSchema.optional(),
@@ -35,7 +35,7 @@ export const terrainListQuerySchema = z.object({
       const num = typeof val === "string" ? Number(val) : val;
       return !Number.isNaN(num);
     }, { message: "Le prix doit être un nombre valide" })
-    .pipe(z.coerce.number().int("Le prix doit être un entier").nonnegative("Le prix ne peut pas être négatif"))
+    .pipe(z.coerce.number().int("Le prix doit être un entier").nonnegative("Le prix ne peut pas être négatif").max(2_147_483_647, "Le prix dépasse la limite autorisée"))
     .optional(),
 });
 
