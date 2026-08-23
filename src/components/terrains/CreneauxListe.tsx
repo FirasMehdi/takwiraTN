@@ -10,13 +10,21 @@ export function CreneauxListe({ creneaux }: { creneaux: Slot[] }) {
   }
 
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
       {creneaux.map((creneau) => (
         <li
           key={creneau.debut}
-          className="flex items-center justify-between rounded border border-gray-200 px-3 py-2"
+          className={`flex flex-col items-center justify-center gap-1 rounded-lg border px-2 py-3 text-center ${
+            creneau.disponible
+              ? "border-gray-200 bg-white"
+              : "border-gray-100 bg-gray-50"
+          }`}
         >
-          <span className="font-medium">
+          <span
+            className={`text-sm font-medium ${
+              creneau.disponible ? "text-anthracite" : "text-gray-400 line-through"
+            }`}
+          >
             {creneau.debut} — {creneau.fin}
           </span>
 
@@ -25,12 +33,12 @@ export function CreneauxListe({ creneaux }: { creneaux: Slot[] }) {
               type="button"
               disabled
               title="Réservation bientôt disponible"
-              className="rounded bg-primary px-3 py-1 text-sm font-semibold text-white disabled:opacity-50"
+              className="rounded bg-primary px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
             >
               Réserver
             </button>
           ) : (
-            <span className="text-sm text-gray-500">Réservé</span>
+            <span className="text-xs text-gray-500">Réservé</span>
           )}
         </li>
       ))}
