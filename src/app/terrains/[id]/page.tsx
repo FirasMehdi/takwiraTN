@@ -58,6 +58,7 @@ export default async function TerrainDetailPage({
           src={terrain.photos[0]}
           alt={terrain.nom}
           className="mt-3 h-40 w-full rounded object-cover"
+          referrerPolicy="no-referrer"
         />
       ) : (
         <div

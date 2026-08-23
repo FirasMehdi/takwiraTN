@@ -19,6 +19,7 @@ export function TerrainCard({ terrain }: { terrain: TerrainResume }) {
           src={terrain.photo}
           alt={terrain.nom}
           className="mb-3 h-32 w-full rounded object-cover"
+          referrerPolicy="no-referrer"
         />
       ) : (
         <div
