@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { cache } from "react";
+import type { Metadata } from "next";
 import { findTerrainById } from "@/lib/terrains/queries";
 import { terrainDetailQuerySchema } from "@/lib/validation/terrain";
 import { CreneauxListe } from "@/components/terrains/CreneauxListe";
@@ -9,8 +11,25 @@ import {
   libelleFormat,
   libelleType,
 } from "@/lib/terrains/format";
+import { normaliserSearchParamsRecord } from "@/lib/api/searchParams";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+const getTerrain = cache((id: string, date?: string) => findTerrainById(id, date));
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const terrain = await getTerrain(id);
+  if (!terrain) return { title: "Terrain introuvable" };
+  return {
+    title: `${terrain.nom} — ${terrain.ville}`,
+    description: `${libelleFormat(terrain.format)} à ${terrain.ville}. ${formatPrix(terrain.prixParCreneau)} le créneau.`,
+  };
+}
 
 export default async function TerrainDetailPage({
   params,
@@ -22,12 +41,10 @@ export default async function TerrainDetailPage({
   const { id } = await params;
   const query = await searchParams;
 
-  const dateBrute = Array.isArray(query.date) ? query.date[0] : query.date;
-  const parsed = terrainDetailQuerySchema.safeParse(
-    dateBrute ? { date: dateBrute } : {}
-  );
+  const brut = normaliserSearchParamsRecord(query);
+  const parsed = terrainDetailQuerySchema.safeParse(brut);
 
-  const terrain = await findTerrainById(id, parsed.success ? parsed.data.date : undefined);
+  const terrain = await getTerrain(id, parsed.success ? parsed.data.date : undefined);
   if (!terrain) notFound();
 
   return (
@@ -100,6 +117,12 @@ export default async function TerrainDetailPage({
 
       <section className="mt-6">
         <h2 className="text-sm font-semibold">Créneaux</h2>
+
+        {brut.date && !parsed.success && (
+          <p role="alert" className="mt-2 text-sm text-red-600">
+            Date invalide ; les créneaux d&apos;aujourd&apos;hui sont affichés.
+          </p>
+        )}
 
         <form method="get" className="mt-2 flex items-end gap-2">
           <div className="flex-1">
