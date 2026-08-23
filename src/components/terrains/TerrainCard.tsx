@@ -12,24 +12,36 @@ export function TerrainCard({ terrain }: { terrain: TerrainResume }) {
   return (
     <Link
       href={`/terrains/${terrain.id}`}
-      className="block rounded-lg border border-gray-200 p-4 transition hover:border-primary"
+      className="block rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-primary hover:shadow-md"
     >
-      {terrain.photo ? (
-        <img
-          src={terrain.photo}
-          alt={terrain.nom}
-          className="mb-3 h-32 w-full rounded object-cover"
-          referrerPolicy="no-referrer"
-        />
-      ) : (
-        <div
-          role="presentation"
-          aria-hidden="true"
-          className="mb-3 flex h-32 w-full items-center justify-center rounded bg-gray-100 text-3xl text-gray-400"
+      <div className="relative">
+        {terrain.photo ? (
+          <img
+            src={terrain.photo}
+            alt={terrain.nom}
+            className="mb-3 h-32 w-full rounded-lg object-cover"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div
+            role="presentation"
+            aria-hidden="true"
+            className="mb-3 flex h-32 w-full items-center justify-center rounded-lg bg-gray-100 text-3xl text-gray-400"
+          >
+            ⚽
+          </div>
+        )}
+        <span
+          className={`absolute right-2 top-2 rounded-full px-3 py-1 text-xs font-bold ${
+            terrain.creneauxLibres > 0
+              ? "bg-accent text-anthracite"
+              : "bg-gray-100 text-gray-500"
+          }`}
         >
-          ⚽
-        </div>
-      )}
+          {terrain.creneauxLibres > 0 ? "⚡ " : ""}
+          {libelleCreneaux(terrain.creneauxLibres)}
+        </span>
+      </div>
 
       <h2 className="font-semibold text-anthracite">{terrain.nom}</h2>
 
@@ -44,13 +56,6 @@ export function TerrainCard({ terrain }: { terrain: TerrainResume }) {
       <div className="mt-3 flex items-center justify-between">
         <span className="font-semibold text-primary">
           {formatPrix(terrain.prixParCreneau)}
-        </span>
-        <span
-          className={
-            terrain.creneauxLibres > 0 ? "text-sm text-primary" : "text-sm text-gray-500"
-          }
-        >
-          {libelleCreneaux(terrain.creneauxLibres)}
         </span>
       </div>
     </Link>
