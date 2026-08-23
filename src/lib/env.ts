@@ -23,11 +23,11 @@ export function resolveAuthSecret(env: EnvLike = process.env): string | undefine
   if (
     env.NODE_ENV === "production" &&
     !isBuild &&
-    (!secret || secret === PLACEHOLDER_AUTH_SECRET)
+    (!secret || secret === PLACEHOLDER_AUTH_SECRET || secret.length < 32)
   ) {
     throw new Error(
-      "NEXTAUTH_SECRET est manquant ou n'a pas été changé depuis .env.example. " +
-        "Générez-en un avec `openssl rand -base64 32` avant de déployer."
+      "NEXTAUTH_SECRET est manquant, n'a pas été changé depuis .env.example, ou fait " +
+        "moins de 32 caractères. Générez-en un avec `openssl rand -base64 32` avant de déployer."
     );
   }
 
