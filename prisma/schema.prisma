@@ -24,6 +24,7 @@ model User {
   profile     PlayerProfile?
   resetTokens PasswordResetToken[]
   terrains    Terrain[]
+  reservations Reservation[]
 }
 
 model PlayerProfile {
@@ -95,6 +96,7 @@ model Terrain {
   owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
   horaires TerrainHoraire[]
+  reservations Reservation[]
 
   createdAt DateTime @default(now())
 
@@ -114,4 +116,32 @@ model TerrainHoraire {
   ferme       String
 
   @@index([terrainId, jourSemaine])
+}
+
+enum ReservationStatut {
+  confirmee
+  annulee
+}
+
+model Reservation {
+  id        String  @id @default(cuid())
+  terrainId String
+  terrain   Terrain @relation(fields: [terrainId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// "YYYY-MM-DD", heure locale Africa/Tunis — même convention que Terrain/slots.
+  date String
+  /// "HH:MM" — doit correspondre exactement à un Slot.debut généré pour ce
+  /// terrain à cette date.
+  heureDebut String
+  heureFin   String
+
+  statut ReservationStatut @default(confirmee)
+
+  createdAt  DateTime  @default(now())
+  canceledAt DateTime?
+
+  @@index([userId])
+  @@index([terrainId, date])
 }
