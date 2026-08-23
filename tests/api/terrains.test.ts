@@ -69,6 +69,26 @@ describe("GET /api/terrains", () => {
     const response = await listGET(listRequest("?date=07-09-2026"));
     expect(response.status).toBe(400);
   });
+
+  it("strips an empty ville param instead of rejecting it", async () => {
+    await creerTerrain();
+
+    const response = await listGET(listRequest("?ville="));
+    expect(response.status).toBe(200);
+
+    const body = await response.json();
+    expect(body.terrains).toHaveLength(1);
+  });
+
+  it("treats prixMax=0 as a real filter value, not an empty param to strip", async () => {
+    await creerTerrain({ prixParCreneau: 60000 });
+
+    const response = await listGET(listRequest("?prixMax=0"));
+    expect(response.status).toBe(200);
+
+    const body = await response.json();
+    expect(body.terrains).toHaveLength(0);
+  });
 });
 
 describe("GET /api/terrains/[id]", () => {
@@ -115,5 +135,23 @@ describe("GET /api/terrains/[id]", () => {
     });
 
     expect(response.status).toBe(400);
+  });
+
+  it("treats an empty date param the same as an omitted one (defaults to today)", async () => {
+    const terrain = await creerTerrain();
+
+    const avecDateVide = await detailGET(detailRequest(terrain.id, "?date="), {
+      params: Promise.resolve({ id: terrain.id }),
+    });
+    const sansDate = await detailGET(detailRequest(terrain.id), {
+      params: Promise.resolve({ id: terrain.id }),
+    });
+
+    expect(avecDateVide.status).toBe(200);
+    expect(sansDate.status).toBe(200);
+
+    const corpsAvecDateVide = await avecDateVide.json();
+    const corpsSansDate = await sansDate.json();
+    expect(corpsAvecDateVide.date).toBe(corpsSansDate.date);
   });
 });
