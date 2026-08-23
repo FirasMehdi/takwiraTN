@@ -19,6 +19,9 @@ function millimesVersDinars(millimes: string | undefined): string {
   return String(nombre / 1000);
 }
 
+const champClasse =
+  "mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
+
 export function TerrainFiltres({ valeurs }: { valeurs: ValeursFiltres }) {
   const router = useRouter();
   const [ville, setVille] = useState(valeurs.ville ?? "");
@@ -49,49 +52,52 @@ export function TerrainFiltres({ valeurs }: { valeurs: ValeursFiltres }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3 px-4 py-4">
+    <form
+      onSubmit={handleSubmit}
+      className="mx-4 mt-4 flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+    >
       <div>
-        <label htmlFor="ville" className="block text-sm font-medium">Ville</label>
+        <label htmlFor="ville" className="block text-sm font-medium text-anthracite">Ville</label>
         <input
           id="ville"
           value={ville}
           onChange={(e) => setVille(e.target.value)}
           placeholder="Tunis, Sfax, Sousse..."
-          className="mt-1 w-full rounded border px-3 py-2"
+          className={champClasse}
         />
       </div>
 
       <div className="flex gap-3">
         <div className="flex-1">
-          <label htmlFor="date" className="block text-sm font-medium">Date</label>
+          <label htmlFor="date" className="block text-sm font-medium text-anthracite">Date</label>
           <input
             id="date"
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="mt-1 w-full rounded border px-3 py-2"
+            className={champClasse}
           />
         </div>
         <div className="flex-1">
-          <label htmlFor="heure" className="block text-sm font-medium">Heure</label>
+          <label htmlFor="heure" className="block text-sm font-medium text-anthracite">Heure</label>
           <input
             id="heure"
             type="time"
             value={heure}
             onChange={(e) => setHeure(e.target.value)}
-            className="mt-1 w-full rounded border px-3 py-2"
+            className={champClasse}
           />
         </div>
       </div>
 
       <div className="flex gap-3">
         <div className="flex-1">
-          <label htmlFor="format" className="block text-sm font-medium">Format</label>
+          <label htmlFor="format" className="block text-sm font-medium text-anthracite">Format</label>
           <select
             id="format"
             value={format}
             onChange={(e) => setFormat(e.target.value)}
-            className="mt-1 w-full rounded border px-3 py-2"
+            className={champClasse}
           >
             <option value="">Tous</option>
             <option value="cinq">5 contre 5</option>
@@ -100,7 +106,7 @@ export function TerrainFiltres({ valeurs }: { valeurs: ValeursFiltres }) {
           </select>
         </div>
         <div className="flex-1">
-          <label htmlFor="prixMax" className="block text-sm font-medium">
+          <label htmlFor="prixMax" className="block text-sm font-medium text-anthracite">
             Prix max (DT)
           </label>
           <input
@@ -109,14 +115,14 @@ export function TerrainFiltres({ valeurs }: { valeurs: ValeursFiltres }) {
             min="0"
             value={prixMaxDinars}
             onChange={(e) => setPrixMaxDinars(e.target.value)}
-            className="mt-1 w-full rounded border px-3 py-2"
+            className={champClasse}
           />
         </div>
       </div>
 
       <button
         type="submit"
-        className="rounded-lg bg-primary px-4 py-3 font-semibold text-white"
+        className="rounded-lg bg-primary px-4 py-3 font-semibold text-white transition hover:bg-primary-dark"
       >
         Rechercher
       </button>

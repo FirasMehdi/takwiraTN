@@ -19,18 +19,18 @@ export default async function TerrainsPage({
   const terrains = await findTerrains(query);
 
   return (
-    <main className="pb-4">
-      <h1 className="px-4 pt-6 text-xl font-semibold">Terrains</h1>
+    <main className="min-h-[calc(100vh-4rem)] bg-gray-50 pb-4">
+      <h1 className="px-4 pt-6 text-xl font-semibold text-anthracite">Terrains</h1>
 
       <TerrainFiltres key={new URLSearchParams(brut).toString()} valeurs={brut} />
 
       {!parsed.success && (
-        <p role="alert" className="px-4 text-sm text-red-600">
+        <p role="alert" className="mx-4 mt-4 text-sm text-red-600">
           Votre recherche contient un filtre invalide ; tous les terrains sont affichés sans filtre.
         </p>
       )}
 
-      <div className="flex flex-col gap-3 px-4">
+      <div className="flex flex-col gap-3 px-4 pt-4">
         {terrains.length === 0 ? (
           <p className="py-8 text-center text-gray-600">
             Aucun terrain ne correspond à votre recherche.
