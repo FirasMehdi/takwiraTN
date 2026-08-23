@@ -2,6 +2,7 @@ import { findTerrains } from "@/lib/terrains/queries";
 import { terrainListQuerySchema } from "@/lib/validation/terrain";
 import { TerrainCard } from "@/components/terrains/TerrainCard";
 import { TerrainFiltres } from "@/components/terrains/TerrainFiltres";
+import { normaliserSearchParamsRecord } from "@/lib/api/searchParams";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -11,16 +12,7 @@ export default async function TerrainsPage({
   searchParams: SearchParams;
 }) {
   const params = await searchParams;
-
-  // Normalise en Record<string, string> : Next peut fournir un tableau quand
-  // le même paramètre apparaît plusieurs fois, et zod attend des chaînes.
-  const brut: Record<string, string> = {};
-  for (const [cle, valeur] of Object.entries(params)) {
-    const premiere = Array.isArray(valeur) ? valeur[0] : valeur;
-    if (premiere !== undefined && premiere !== "") {
-      brut[cle] = premiere;
-    }
-  }
+  const brut = normaliserSearchParamsRecord(params);
 
   const parsed = terrainListQuerySchema.safeParse(brut);
   const query = parsed.success ? parsed.data : {};
