@@ -36,6 +36,88 @@ describe("signupSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects an e-mail longer than 254 characters", () => {
+    const local = "a".repeat(255 - "@example.com".length);
+    const result = signupSchema.safeParse({
+      email: `${local}@example.com`,
+      password: "motdepasse123",
+      prenom: "Sami",
+      ville: "Tunis",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts an e-mail exactly 254 characters long", () => {
+    const local = "a".repeat(254 - "@example.com".length);
+    const result = signupSchema.safeParse({
+      email: `${local}@example.com`,
+      password: "motdepasse123",
+      prenom: "Sami",
+      ville: "Tunis",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a password longer than 72 characters", () => {
+    const result = signupSchema.safeParse({
+      email: "a@example.com",
+      password: "a".repeat(73),
+      prenom: "Sami",
+      ville: "Tunis",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a password exactly 72 characters long", () => {
+    const result = signupSchema.safeParse({
+      email: "a@example.com",
+      password: "a".repeat(72),
+      prenom: "Sami",
+      ville: "Tunis",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a prenom longer than 80 characters", () => {
+    const result = signupSchema.safeParse({
+      email: "a@example.com",
+      password: "motdepasse123",
+      prenom: "a".repeat(81),
+      ville: "Tunis",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a prenom exactly 80 characters long", () => {
+    const result = signupSchema.safeParse({
+      email: "a@example.com",
+      password: "motdepasse123",
+      prenom: "a".repeat(80),
+      ville: "Tunis",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a ville longer than 80 characters", () => {
+    const result = signupSchema.safeParse({
+      email: "a@example.com",
+      password: "motdepasse123",
+      prenom: "Sami",
+      ville: "a".repeat(81),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a ville exactly 80 characters long", () => {
+    const result = signupSchema.safeParse({
+      email: "a@example.com",
+      password: "motdepasse123",
+      prenom: "Sami",
+      ville: "a".repeat(80),
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe("loginSchema", () => {

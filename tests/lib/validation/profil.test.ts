@@ -45,4 +45,42 @@ describe("profilSchema", () => {
       expect(result.data.poste).toBeNull();
     }
   });
+
+  it("rejects a prenom longer than 80 characters", () => {
+    const result = profilSchema.safeParse({ prenom: "a".repeat(81), ville: "Sousse" });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a prenom exactly 80 characters long", () => {
+    const result = profilSchema.safeParse({ prenom: "a".repeat(80), ville: "Sousse" });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a ville longer than 80 characters", () => {
+    const result = profilSchema.safeParse({ prenom: "Amine", ville: "a".repeat(81) });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a ville exactly 80 characters long", () => {
+    const result = profilSchema.safeParse({ prenom: "Amine", ville: "a".repeat(80) });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a telephone longer than 20 characters", () => {
+    const result = profilSchema.safeParse({
+      prenom: "Amine",
+      ville: "Sousse",
+      telephone: "1".repeat(21),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a telephone exactly 20 characters long", () => {
+    const result = profilSchema.safeParse({
+      prenom: "Amine",
+      ville: "Sousse",
+      telephone: "1".repeat(20),
+    });
+    expect(result.success).toBe(true);
+  });
 });
