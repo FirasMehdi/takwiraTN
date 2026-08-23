@@ -26,7 +26,7 @@ export default async function TerrainsPage({
 
       {!parsed.success && (
         <p role="alert" className="px-4 text-sm text-red-600">
-          Certains filtres sont invalides et ont été ignorés.
+          Votre recherche contient un filtre invalide ; tous les terrains sont affichés sans filtre.
         </p>
       )}
 
