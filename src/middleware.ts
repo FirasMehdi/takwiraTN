@@ -12,5 +12,6 @@ export const config = {
     "/tableau-de-bord/:path*",
     "/joueurs/:path*",
     "/matchs/creer/:path*",
+    "/amis/:path*",
   ],
 };

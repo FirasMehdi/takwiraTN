@@ -1,0 +1,74 @@
+import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { prisma } from "@/lib/prisma";
+import { resetDb } from "../../setup/testDb";
+import { hashPassword } from "@/lib/password";
+import { envoyerDemande, accepterDemande } from "@/lib/amis/queries";
+import { envoyerMessage, findConversation, findConversations } from "@/lib/messages/queries";
+
+async function creerUtilisateur(email: string, prenom = "Joueur") {
+  return prisma.user.create({
+    data: {
+      email,
+      passwordHash: await hashPassword("motdepasse123"),
+      profile: { create: { prenom, ville: "Tunis" } },
+    },
+  });
+}
+
+async function creerAmis(prenomA: string, prenomB: string) {
+  const a = await creerUtilisateur(`${prenomA.toLowerCase()}@example.com`, prenomA);
+  const b = await creerUtilisateur(`${prenomB.toLowerCase()}@example.com`, prenomB);
+  const { id } = (await envoyerDemande(a.id, b.id)) as { id: string };
+  await accepterDemande(id, b.id);
+  return { a, b };
+}
+
+describe("messages/queries", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  it("refuses to send a message between non-friends", async () => {
+    const a = await creerUtilisateur("a@example.com");
+    const b = await creerUtilisateur("b@example.com");
+
+    const resultat = await envoyerMessage(a.id, b.id, "Salut !");
+    expect(resultat).toEqual({ ok: false, raison: "pas_amis" });
+  });
+
+  it("sends a message between friends and it appears in the conversation", async () => {
+    const { a, b } = await creerAmis("Amine", "Bilel");
+
+    const resultat = await envoyerMessage(a.id, b.id, "On joue quand ?");
+    expect(resultat.ok).toBe(true);
+
+    const conversation = await findConversation(a.id, b.id);
+    expect(conversation).toHaveLength(1);
+    expect(conversation[0].contenu).toBe("On joue quand ?");
+    expect(conversation[0].expediteurId).toBe(a.id);
+  });
+
+  it("returns messages from both directions in chronological order", async () => {
+    const { a, b } = await creerAmis("Amine", "Bilel");
+    await envoyerMessage(a.id, b.id, "Premier");
+    await envoyerMessage(b.id, a.id, "Deuxième");
+
+    const conversation = await findConversation(a.id, b.id);
+    expect(conversation.map((m) => m.contenu)).toEqual(["Premier", "Deuxième"]);
+  });
+
+  it("lists conversations with the last message per contact", async () => {
+    const { a, b } = await creerAmis("Amine", "Bilel");
+    await envoyerMessage(a.id, b.id, "Ancien message");
+    await envoyerMessage(b.id, a.id, "Message récent");
+
+    const conversations = await findConversations(a.id);
+    expect(conversations).toHaveLength(1);
+    expect(conversations[0].autreUserId).toBe(b.id);
+    expect(conversations[0].dernierMessage).toBe("Message récent");
+  });
+});

@@ -27,6 +27,10 @@ model User {
   reservations Reservation[]
   matchsOrganises      Match[]            @relation("MatchOrganisateur")
   participationsMatchs MatchParticipant[]
+  demandesEnvoyees    Amitie[]  @relation("AmitieDemandeur")
+  demandesRecues      Amitie[]  @relation("AmitieDestinataire")
+  messagesEnvoyes     Message[] @relation("MessageExpediteur")
+  messagesRecus       Message[] @relation("MessageDestinataire")
 }
 
 model PlayerProfile {
@@ -191,4 +195,42 @@ model Reservation {
 
   @@index([userId])
   @@index([terrainId, date])
+}
+
+enum StatutAmitie {
+  en_attente
+  acceptee
+  refusee
+}
+
+model Amitie {
+  id             String       @id @default(cuid())
+  demandeurId    String
+  demandeur      User         @relation("AmitieDemandeur", fields: [demandeurId], references: [id], onDelete: Cascade)
+  destinataireId String
+  destinataire   User         @relation("AmitieDestinataire", fields: [destinataireId], references: [id], onDelete: Cascade)
+
+  statut StatutAmitie @default(en_attente)
+
+  createdAt   DateTime  @default(now())
+  respondedAt DateTime?
+
+  @@unique([demandeurId, destinataireId])
+  @@index([destinataireId, statut])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  expediteurId   String
+  expediteur     User     @relation("MessageExpediteur", fields: [expediteurId], references: [id], onDelete: Cascade)
+  destinataireId String
+  destinataire   User     @relation("MessageDestinataire", fields: [destinataireId], references: [id], onDelete: Cascade)
+
+  contenu String
+
+  createdAt DateTime  @default(now())
+  luAt      DateTime?
+
+  @@index([expediteurId, destinataireId])
+  @@index([destinataireId, expediteurId])
 }
