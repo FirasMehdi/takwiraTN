@@ -38,7 +38,10 @@ export async function POST(request: Request) {
       });
       const token = await createPasswordResetToken(user.id);
       const resetUrl = `${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/reinitialiser-mot-de-passe/${token}`;
-      deliverPasswordResetLink({ email: user.email, resetUrl });
+      // Awaited (not fire-and-forget): a serverless function can be frozen
+      // right after the response is returned, so background work started
+      // here without awaiting it risks never actually completing.
+      await deliverPasswordResetLink({ email: user.email, resetUrl });
     }
   }
 

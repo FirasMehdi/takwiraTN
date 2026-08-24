@@ -7,20 +7,35 @@ développement local, sans utilisateurs réels ni déploiement.
 
 **Chacun de ces points doit être traité avant la première mise en ligne.**
 
-## 1. Envoi réel des e-mails de réinitialisation — BLOQUANT
+## 1. Envoi réel des e-mails de réinitialisation — implémenté (Resend)
 
-**État actuel :** aucun fournisseur d'e-mail n'est configuré. En développement,
-le lien de réinitialisation est affiché dans la console du serveur
-(`src/lib/mailer.ts`).
+**État actuel :** `src/lib/mailer.ts` envoie réellement l'e-mail via
+[Resend](https://resend.com) quand `RESEND_API_KEY` est configuré. En
+développement (`NODE_ENV !== "production"`), le lien continue de s'afficher
+dans la console — aucune clé nécessaire en local.
 
-**Protection déjà en place :** en production, le lien n'est **jamais** journalisé
-— la fonction refuse de l'écrire et signale l'absence de configuration à la
-place. Un lien de réinitialisation dans des logs équivaut à une prise de contrôle
-de compte pour quiconque peut les lire.
+**Protection inchangée :** en production, si `RESEND_API_KEY` est absent, le
+lien n'est **toujours pas** journalisé — la fonction refuse et signale la
+configuration manquante à la place. Un lien de réinitialisation dans des logs
+équivaut à une prise de contrôle de compte pour quiconque peut les lire. Même
+en cas d'échec d'envoi côté Resend (clé invalide, erreur réseau...), le lien
+n'apparaît jamais dans les logs — seul le message d'erreur de Resend l'est.
 
-**À faire :** choisir un fournisseur (Resend, SendGrid, Amazon SES…), puis
-implémenter l'envoi réel dans `deliverPasswordResetLink`. Sans cela, la
-réinitialisation de mot de passe **ne fonctionne pas en production**.
+**À faire avant le premier déploiement :**
+1. Créer un compte [resend.com](https://resend.com) (gratuit jusqu'à 3 000
+   e-mails/mois).
+2. Générer une clé API et la définir comme `RESEND_API_KEY` dans les
+   variables d'environnement de production (jamais dans un fichier commité).
+3. Optionnel : vérifier un domaine dans le tableau de bord Resend et définir
+   `EMAIL_FROM` en conséquence — sans ça, les e-mails partent du domaine de
+   test `onboarding@resend.dev`, qui fonctionne mais est moins professionnel
+   et peut atterrir plus facilement en spam pour certains destinataires.
+
+**Important — l'envoi est `await`é, pas fire-and-forget :** sur une
+plateforme serverless (Vercel), le processus peut être gelé juste après le
+retour de la réponse HTTP. `src/app/api/mot-de-passe-oublie/route.ts` attend
+donc la fin de l'envoi avant de répondre — un travail en arrière-plan non
+attendu risquerait de ne jamais se terminer.
 
 ## 2. `NEXTAUTH_SECRET` — protection active
 
