@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { findJoueurById } from "@/lib/joueurs/queries";
+import { statutRelation } from "@/lib/amis/queries";
+import { AjouterAmiButton } from "@/components/amis/AjouterAmiButton";
 
 const POSTES: Record<string, string> = {
   gardien: "Gardien",
@@ -37,6 +39,9 @@ export default async function JoueurDetailPage({
   const joueur = await findJoueurById(id);
   if (!joueur) notFound();
 
+  const estSoiMeme = session.user.id === joueur.id;
+  const relation = estSoiMeme ? null : await statutRelation(session.user.id, joueur.id);
+
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-gray-50 px-4 pb-6 pt-6">
       <Link href="/joueurs" className="text-sm text-primary hover:underline">
@@ -66,6 +71,12 @@ export default async function JoueurDetailPage({
             <p className="text-sm text-gray-600">{joueur.ville}</p>
           </div>
         </div>
+
+        {relation && (
+          <div className="mt-4">
+            <AjouterAmiButton destinataireId={joueur.id} statutInitial={relation} />
+          </div>
+        )}
 
         {joueur.bio && <p className="mt-4 text-sm text-anthracite">{joueur.bio}</p>}
 

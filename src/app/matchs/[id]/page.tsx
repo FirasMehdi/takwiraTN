@@ -3,7 +3,9 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { findMatchById } from "@/lib/matchs/queries";
+import { findAmis } from "@/lib/amis/queries";
 import { MatchActions } from "@/components/matchs/MatchActions";
+import { InviterAmiButton } from "@/components/matchs/InviterAmiButton";
 
 export default async function MatchDetailPage({
   params,
@@ -18,6 +20,18 @@ export default async function MatchDetailPage({
   const estOrganisateur = session?.user?.id === match.organisateurId;
   const estInscrit =
     !!session?.user && match.participants.some((p) => p.userId === session.user.id);
+
+  // Inviter un ami manquant : réservé aux participants déjà dans le match,
+  // pour un match encore ouvert — inutile de proposer d'inviter si c'est déjà
+  // complet ou annulé.
+  let amisDisponibles: { id: string; prenom: string }[] = [];
+  if (session?.user && estInscrit && match.statut === "ouvert") {
+    const amis = await findAmis(session.user.id);
+    const dejaInscrits = new Set(match.participants.map((p) => p.userId));
+    amisDisponibles = amis
+      .filter((ami) => !dejaInscrits.has(ami.id))
+      .map((ami) => ({ id: ami.id, prenom: ami.prenom }));
+  }
 
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-gray-50 px-4 pb-6 pt-6">
@@ -46,13 +60,19 @@ export default async function MatchDetailPage({
           ))}
         </ul>
 
-        <div className="mt-4">
+        <div className="mt-4 flex flex-col gap-2">
           <MatchActions
             matchId={match.id}
             statut={match.statut}
             estOrganisateur={estOrganisateur}
             estInscrit={estInscrit}
           />
+          {amisDisponibles.length > 0 && (
+            <InviterAmiButton
+              matchUrl={`${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/matchs/${match.id}`}
+              amisDisponibles={amisDisponibles}
+            />
+          )}
         </div>
       </div>
     </main>
