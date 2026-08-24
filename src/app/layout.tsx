@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 import { BottomNav } from "@/components/nav/BottomNav";
+import { TopHeader } from "@/components/nav/TopHeader";
 
 export const metadata: Metadata = {
   title: "Takwria TN",
@@ -13,6 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fr">
       <body className="min-h-screen bg-white pb-16 text-anthracite">
         <SessionProvider>
+          <TopHeader />
           {children}
           <BottomNav />
         </SessionProvider>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { TerrainResume } from "@/lib/terrains/queries";
 import { formatPrix, libelleFormat, libelleType } from "@/lib/terrains/format";
+import { TerrainIllustration } from "@/components/ui/TerrainIllustration";
 
 function libelleCreneaux(nombre: number): string {
   if (nombre === 0) return "Aucun créneau libre";
@@ -23,13 +24,7 @@ export function TerrainCard({ terrain }: { terrain: TerrainResume }) {
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div
-            role="presentation"
-            aria-hidden="true"
-            className="mb-3 flex h-32 w-full items-center justify-center rounded-lg bg-gray-100 text-3xl text-gray-400"
-          >
-            ⚽
-          </div>
+          <TerrainIllustration className="mb-3 h-32 w-full rounded-lg object-cover" />
         )}
         <span
           className={`absolute right-2 top-2 rounded-full px-3 py-1 text-xs font-bold ${

@@ -12,6 +12,7 @@ import {
   libelleType,
 } from "@/lib/terrains/format";
 import { normaliserSearchParamsRecord } from "@/lib/api/searchParams";
+import { TerrainIllustration } from "@/components/ui/TerrainIllustration";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -62,13 +63,7 @@ export default async function TerrainDetailPage({
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div
-            role="presentation"
-            aria-hidden="true"
-            className="flex h-40 w-full items-center justify-center bg-gray-100 text-4xl text-gray-400"
-          >
-            ⚽
-          </div>
+          <TerrainIllustration className="h-40 w-full object-cover" />
         )}
 
         <div className="p-4">
