@@ -25,6 +25,8 @@ model User {
   resetTokens PasswordResetToken[]
   terrains    Terrain[]
   reservations Reservation[]
+  matchsOrganises      Match[]            @relation("MatchOrganisateur")
+  participationsMatchs MatchParticipant[]
 }
 
 model PlayerProfile {
@@ -97,6 +99,7 @@ model Terrain {
 
   horaires TerrainHoraire[]
   reservations Reservation[]
+  matches Match[]
 
   createdAt DateTime @default(now())
 
@@ -116,6 +119,50 @@ model TerrainHoraire {
   ferme       String
 
   @@index([terrainId, jourSemaine])
+}
+
+enum MatchStatut {
+  ouvert
+  complet
+  annule
+}
+
+model Match {
+  id             String   @id @default(cuid())
+  terrainId      String
+  terrain        Terrain  @relation(fields: [terrainId], references: [id], onDelete: Cascade)
+  organisateurId String
+  organisateur   User     @relation("MatchOrganisateur", fields: [organisateurId], references: [id], onDelete: Cascade)
+
+  /// "YYYY-MM-DD", heure locale Africa/Tunis.
+  date       String
+  heureDebut String
+  heureFin   String
+
+  /// Effectif total recherché, organisateur inclus (ex. 10 pour un 5v5).
+  joueursMax Int
+
+  description String?
+
+  statut MatchStatut @default(ouvert)
+
+  createdAt DateTime @default(now())
+
+  participants MatchParticipant[]
+
+  @@index([date])
+  @@index([terrainId])
+}
+
+model MatchParticipant {
+  id       String   @id @default(cuid())
+  matchId  String
+  match    Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt DateTime @default(now())
+
+  @@unique([matchId, userId])
 }
 
 enum ReservationStatut {
