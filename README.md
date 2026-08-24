@@ -2,8 +2,10 @@
 
 Trouve ton terrain. Forme ton équipe. Joue ton match.
 
-Sous-projet actuel : **Fondations & Authentification** (voir
-`docs/superpowers/specs/2026-08-18-foundation-auth-design.md`).
+Plateforme de réservation de terrains de sport en Tunisie : inscription et
+connexion, recherche et consultation des terrains, réservation de créneaux
+avec protection contre la double-réservation, annulation, tableau de bord
+joueur.
 
 ## Prérequis
 
@@ -42,21 +44,28 @@ npm run lint    # vérifie le code (ESLint)
 npm run build   # build de production
 ```
 
-En développement, les liens de réinitialisation de mot de passe sont
-affichés dans la console du serveur (pas d'envoi d'e-mail réel pour
-l'instant).
+En développement, les liens de réinitialisation de mot de passe sont affichés
+dans la console du serveur — aucune clé d'API n'est nécessaire en local. En
+production, ils sont envoyés par e-mail via [Resend](https://resend.com) (voir
+`RESEND_API_KEY` dans `.env.example`).
+
+## Déploiement
+
+Guide complet, pas à pas : **[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)**
+(Vercel + base de données Postgres managée + Resend + CI GitHub Actions).
 
 ## Avant une mise en production
 
-Ce projet est en phase de développement local. Certains points de sécurité
-ont été **volontairement reportés** et doivent être traités avant toute mise
-en ligne : voir **[`docs/pre-production-checklist.md`](docs/pre-production-checklist.md)**.
+Ce projet est en phase de développement. Le point le plus critique déjà
+traité : voir **[`docs/pre-production-checklist.md`](docs/pre-production-checklist.md)**
+pour le détail complet et ce qui reste un choix assumé plutôt qu'un oubli.
 
-Les deux plus importants :
+À ne jamais oublier au déploiement :
 
 - **Générez un vrai `NEXTAUTH_SECRET`** (`openssl rand -base64 32`).
-  L'application refuse de démarrer en production avec la valeur d'exemple.
-- **Configurez un fournisseur d'e-mail.** Sans cela, la réinitialisation de
-  mot de passe ne fonctionne pas en production : le lien n'est jamais
-  journalisé hors développement, précisément pour ne pas exposer un accès
-  aux comptes dans les logs.
+  L'application refuse de démarrer en production avec la valeur d'exemple ou
+  un secret de moins de 32 caractères.
+- **Configurez `RESEND_API_KEY`.** Sans cela, la réinitialisation de mot de
+  passe ne fonctionne pas en production : le lien n'est jamais journalisé
+  hors développement, précisément pour ne pas exposer un accès aux comptes
+  dans les logs.

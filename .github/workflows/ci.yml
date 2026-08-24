@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: takwria
+          POSTGRES_PASSWORD: takwria
+          POSTGRES_DB: takwria_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://takwria:takwria@localhost:5433/takwria_test
+      # Not a real secret — this is a throwaway value for the CI database,
+      # never used against a real deployment. It just needs to satisfy the
+      # 32-character floor so resolveAuthSecret() doesn't refuse to boot.
+      NEXTAUTH_SECRET: ci-only-secret-not-used-in-any-real-deployment-xy
+      NEXTAUTH_URL: http://localhost:3000
+      NODE_ENV: test
+      TZ: Africa/Tunis
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma migrate deploy
+
+      - run: npm run lint
+
+      - run: npm test
+
+      - run: npm run build
