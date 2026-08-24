@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { resetDb } from "../setup/testDb";
+import { resetRateLimits } from "@/lib/rateLimit";
 import { POST } from "@/app/api/inscription/route";
 
 function makeRequest(body: unknown) {
@@ -14,6 +15,7 @@ function makeRequest(body: unknown) {
 describe("POST /api/inscription", () => {
   beforeEach(async () => {
     await resetDb();
+    resetRateLimits();
   });
 
   afterAll(async () => {
@@ -79,5 +81,28 @@ describe("POST /api/inscription", () => {
 
     const user = await prisma.user.findUnique({ where: { email: "mixed.case@example.com" } });
     expect(user).not.toBeNull();
+  });
+
+  it("rate limits repeated signups from the same IP with 429 and a Retry-After header", async () => {
+    const request = () =>
+      new Request("http://localhost/api/inscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-forwarded-for": "10.0.0.1" },
+        body: JSON.stringify({
+          email: `dup-${Math.random()}@example.com`,
+          password: "motdepasse123",
+          prenom: "A",
+          ville: "Tunis",
+        }),
+      });
+
+    for (let i = 0; i < 5; i++) {
+      const response = await POST(request());
+      expect(response.status).not.toBe(429);
+    }
+
+    const response = await POST(request());
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
   });
 });

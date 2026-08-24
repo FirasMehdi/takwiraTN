@@ -31,6 +31,12 @@ describe("resolveAuthSecret", () => {
     ).toThrow(/NEXTAUTH_SECRET/);
   });
 
+  it("throws in production when the secret is shorter than 32 characters", () => {
+    expect(() =>
+      resolveAuthSecret({ NEXTAUTH_SECRET: "short", NODE_ENV: "production" })
+    ).toThrow(/NEXTAUTH_SECRET/);
+  });
+
   it("allows the placeholder outside production", () => {
     const secret = resolveAuthSecret({
       NEXTAUTH_SECRET: PLACEHOLDER_AUTH_SECRET,

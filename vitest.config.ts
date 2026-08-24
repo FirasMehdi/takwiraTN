@@ -13,6 +13,10 @@ export default defineConfig({
     exclude: ["**/node_modules/**", "**/dist/**", "**/.next/**", "**/.claude/**"],
     env: {
       NODE_ENV: "test",
+      // La génération de créneaux suppose l'heure locale de Tunis (voir
+      // README.md § Fuseau horaire) ; on pin le fuseau du runner de tests
+      // pour qu'il corresponde à celui attendu en production.
+      TZ: "Africa/Tunis",
       DATABASE_URL_TEST:
         process.env.DATABASE_URL_TEST ??
         "postgresql://takwria:takwria@localhost:5433/takwria_test",

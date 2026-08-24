@@ -14,14 +14,17 @@ enum Role {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  role         Role     @default(joueur)
-  createdAt    DateTime @default(now())
+  id             String   @id @default(cuid())
+  email          String   @unique
+  passwordHash   String
+  role           Role     @default(joueur)
+  sessionVersion Int      @default(0)
+  createdAt      DateTime @default(now())
 
   profile     PlayerProfile?
   resetTokens PasswordResetToken[]
+  terrains    Terrain[]
+  reservations Reservation[]
 }
 
 model PlayerProfile {
@@ -38,12 +41,107 @@ model PlayerProfile {
 }
 
 model PasswordResetToken {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// SHA-256 of the token we e-mail out — never the raw token, so a database
   /// snapshot cannot be turned into working reset links.
   tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
+}
+
+enum TerrainType {
+  gazon_synthetique
+  gazon_naturel
+  beton
+}
+
+enum TerrainFormat {
+  cinq
+  sept
+  onze
+}
+
+enum TerrainStatut {
+  actif
+  en_attente
+  suspendu
+}
+
+model Terrain {
+  id          String  @id @default(cuid())
+  nom         String
+  description String?
+  adresse     String
+  ville       String
+  latitude    Float?
+  longitude   Float?
+
+  type   TerrainType
+  format TerrainFormat
+
+  /// Prix d'un créneau, en millimes (1 TND = 1000 millimes).
+  prixParCreneau      Int
+  dureeCreneauMinutes Int @default(90)
+
+  equipements String[]
+  photos      String[]
+
+  statut TerrainStatut @default(actif)
+
+  /// Null pour les terrains de démonstration ; la gestion par le
+  /// propriétaire arrive au sous-projet 6.
+  ownerId String?
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  horaires TerrainHoraire[]
+  reservations Reservation[]
+
+  createdAt DateTime @default(now())
+
+  @@index([ville])
+  @@index([statut])
+}
+
+model TerrainHoraire {
+  id        String  @id @default(cuid())
+  terrainId String
+  terrain   Terrain @relation(fields: [terrainId], references: [id], onDelete: Cascade)
+
+  /// 0 = dimanche … 6 = samedi (aligné sur Date.getDay()).
+  jourSemaine Int
+  /// Heure locale Africa/Tunis, format "HH:MM".
+  ouvre       String
+  ferme       String
+
+  @@index([terrainId, jourSemaine])
+}
+
+enum ReservationStatut {
+  confirmee
+  annulee
+}
+
+model Reservation {
+  id        String  @id @default(cuid())
+  terrainId String
+  terrain   Terrain @relation(fields: [terrainId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// "YYYY-MM-DD", heure locale Africa/Tunis — même convention que Terrain/slots.
+  date String
+  /// "HH:MM" — doit correspondre exactement à un Slot.debut généré pour ce
+  /// terrain à cette date.
+  heureDebut String
+  heureFin   String
+
+  statut ReservationStatut @default(confirmee)
+
+  createdAt  DateTime  @default(now())
+  canceledAt DateTime?
+
+  @@index([userId])
+  @@index([terrainId, date])
 }

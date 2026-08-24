@@ -25,8 +25,8 @@ réinitialisation de mot de passe **ne fonctionne pas en production**.
 ## 2. `NEXTAUTH_SECRET` — protection active
 
 **État actuel :** l'application **refuse de démarrer en production** si
-`NEXTAUTH_SECRET` est absent, vide, ou encore égal à la valeur d'exemple
-`change-me-in-dev` (`src/lib/env.ts`).
+`NEXTAUTH_SECRET` est absent, vide, égal à la valeur d'exemple
+`change-me-in-dev`, ou fait **moins de 32 caractères** (`src/lib/env.ts`).
 
 **À faire :** générer un vrai secret avant le déploiement :
 
@@ -39,42 +39,67 @@ session pour n'importe quel compte.
 
 ## 3. Énumération des comptes par mesure du temps de réponse
 
-**État actuel :** reporté volontairement.
+**État actuel : le canal temporel de connexion est corrigé, un canal distinct
+reste ouvert volontairement.**
 
-`authorizeCredentials` (`src/lib/auth.ts`) et la route
-`/api/mot-de-passe-oublie` répondent plus vite pour une adresse inconnue que
-pour une adresse connue : le chemin « inconnu » saute la comparaison bcrypt ou
-l'écriture en base. Un attaquant patient peut ainsi deviner quelles adresses
-sont inscrites.
+`authorizeCredentials` (`src/lib/auth.ts`) compare désormais systématiquement
+le mot de passe fourni à un hash bcrypt factice (`DUMMY_HASH`, calculé une
+fois au chargement du module) lorsque l'adresse n'existe pas, avant de
+retourner `null`. Le coût CPU est donc payé sur les deux chemins et le temps
+de réponse ne révèle plus l'existence d'un compte via `/api/auth/*`.
 
-**Pourquoi c'est reporté :** la route d'inscription révèle déjà volontairement
-l'existence d'un compte (`409 « Cet e-mail est déjà utilisé »`), ce qui est un
-choix d'ergonomie standard. Corriger le canal temporel seul ne fermerait rien,
-puisque l'énumération reste triviale via l'inscription.
+**Ce qui reste un choix assumé, pas un oubli :** la route d'inscription
+révèle toujours volontairement l'existence d'un compte
+(`409 « Cet e-mail est déjà utilisé »`) — ce n'est pas un canal temporel mais
+un signal explicite dans la réponse, et c'est un choix d'ergonomie distinct,
+non traité par ce correctif. Quiconque veut vérifier si une adresse est
+inscrite peut donc toujours le faire via `/api/inscription`.
 
-**À faire, comme un seul chantier :** décider du comportement de l'inscription,
-ajouter une limitation de débit (rate limiting) sur la connexion et sur la
-demande de réinitialisation, et égaliser les temps de réponse (comparaison
-bcrypt factice quand l'utilisateur n'existe pas).
+## 4. Limitation de débit (rate limiting) — implémentée
 
-## 4. Limitation de débit (rate limiting) — absente
+**État actuel :** `src/lib/rateLimit.ts` fournit un limiteur **en mémoire,
+mono-processus** (`checkRateLimit`), appliqué à :
 
-**État actuel :** aucune limitation sur `/api/inscription`, `/api/auth/*`,
-`/api/mot-de-passe-oublie` ni `/api/reinitialiser-mot-de-passe`.
+- `/api/inscription` — 5 tentatives / 15 min par IP, réponse `429` avec
+  `Retry-After`.
+- `/api/reinitialiser-mot-de-passe` — 10 tentatives / 15 min par IP, réponse
+  `429` avec `Retry-After`.
+- `/api/mot-de-passe-oublie` — 3 tentatives / heure par adresse e-mail et 20 /
+  heure par IP, mais **sans réponse `429`** : au-delà de la limite, la route
+  saute silencieusement la création du jeton et renvoie le même `200`
+  générique, pour ne pas ouvrir un nouveau canal d'énumération plus rapide que
+  l'existant (voir point 3).
+- `authorizeCredentials` (connexion) — 5 tentatives / 15 min par
+  couple e-mail + IP.
 
-**À faire :** limiter les tentatives par IP et par compte. Sans cela, rien
-n'empêche le bourrage d'identifiants (credential stuffing) ni l'envoi massif de
-demandes de réinitialisation.
+**Limite connue et documentée dans le code :** ce limiteur ne coordonne
+**rien entre plusieurs instances/processus**. Il convient au déploiement
+actuel (mono-instance). Un déploiement horizontal futur nécessiterait un
+stockage partagé (Redis, ou un compteur en base).
 
-## 5. Sessions JWT et changement de mot de passe
+## 5. Sessions JWT et changement de mot de passe — invalidation implémentée (partiellement)
 
-**État actuel :** les sessions utilisent la stratégie `jwt`. Une réinitialisation
-de mot de passe **n'invalide pas** les sessions déjà ouvertes ailleurs — un JWT
-émis avant reste valide jusqu'à son expiration.
+**État actuel :** le modèle `User` porte désormais un champ `sessionVersion`
+(migration `add_session_version`). Une réinitialisation de mot de passe
+incrémente ce compteur ; le callback `jwt` de NextAuth (`src/lib/auth.ts`) le
+recompare à chaque lecture du token et rejette la session (lève une erreur,
+donc NextAuth la traite comme déconnectée) si la valeur ne correspond plus.
 
-**À faire :** si l'invalidation immédiate est nécessaire, passer aux sessions en
-base de données, ou ajouter un champ de version de session dans le JWT, comparé à
-une valeur stockée sur l'utilisateur.
+Ceci couvre effectivement `getServerSession`, `useSession`, et l'endpoint
+`/api/auth/session` — donc les vérifications de page comme celles de
+`/profil` et `/tableau-de-bord`, qui appellent `getServerSession` à chaque
+chargement.
+
+**Trou documenté et volontaire :** `next-auth/middleware` (`withAuth`, utilisé
+dans `src/middleware.ts`) lit le cookie brut via `getToken()`, qui **décode le
+JWT sans invoquer le callback `jwt`**. Un token juste révoqué peut donc encore
+franchir la porte du middleware jusqu'à son expiration naturelle. Ce n'est pas
+une faille silencieuse : c'est la vérification `getServerSession` au niveau
+des pages elles-mêmes qui ferme réellement l'accès pour un utilisateur ayant
+réinitialisé son mot de passe. Fermer aussi ce trou au niveau du middleware
+nécessiterait un appel base de données depuis le Edge middleware, ce qui
+entre en conflit avec le moteur de requêtes Prisma (Node uniquement) — non
+traité dans ce correctif.
 
 ---
 

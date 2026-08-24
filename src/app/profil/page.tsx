@@ -20,11 +20,13 @@ export default async function ProfilPage() {
   }
 
   return (
-    <main className="px-4 py-6">
-      <h1 className="text-center text-xl font-semibold">Mon profil</h1>
-      <ProfilForm profile={profile} />
-      <div className="px-4 pb-6">
-        <DeconnexionButton />
+    <main className="flex min-h-[calc(100vh-4rem)] flex-col items-center bg-gray-50 px-4 py-10">
+      <div className="w-full max-w-sm overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <h1 className="px-4 pt-6 text-center text-xl font-semibold text-anthracite">Mon profil</h1>
+        <ProfilForm profile={profile} />
+        <div className="px-4 pb-6">
+          <DeconnexionButton />
+        </div>
       </div>
     </main>
   );
