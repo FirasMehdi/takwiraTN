@@ -86,6 +86,20 @@ describe("messages/queries", () => {
     expect(resultat).toEqual([]);
   });
 
+  it("still returns no conversation for oneself even when a real conversation with someone else exists", async () => {
+    // Régression : avant le correctif, le clause AND de findConversation
+    // dégénérait en deux prédicats "some" identiques quand userIdA ===
+    // userIdB, et retournait alors n'importe quelle conversation à laquelle
+    // A participe (ici, celle avec B) au lieu de [] — cette variante du test
+    // échoue avec l'ancien code, contrairement à celle ci-dessus qui passait
+    // déjà sans le correctif faute d'une vraie conversation à faire fuiter.
+    const { a, b } = await creerAmis("Amine", "Bilel");
+    await envoyerMessage(a.id, b.id, "On joue quand ?");
+
+    const resultat = await findConversation(a.id, a.id);
+    expect(resultat).toEqual([]);
+  });
+
   it("still sends the message and returns ok when notification creation fails", async () => {
     const { a, b } = await creerAmis("Amine", "Bilel");
     vi.mocked(creerNotification).mockRejectedValueOnce(new Error("boom"));
