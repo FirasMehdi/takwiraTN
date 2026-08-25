@@ -1,23 +1,32 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import type { FormatEquipe } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { resetDb } from "../setup/testDb";
 import { GET as listGET } from "@/app/api/terrains/route";
 import { GET as detailGET } from "@/app/api/terrains/[id]/route";
 
 async function creerTerrain(overrides: Record<string, unknown> = {}) {
+  const { format, prixParCreneau, ...reste } = overrides;
   return prisma.terrain.create({
     data: {
       nom: "Terrain Test",
       adresse: "Rue Test",
       ville: "Tunis",
       type: "gazon_synthetique",
-      format: "cinq",
-      prixParCreneau: 60000,
       dureeCreneauMinutes: 90,
       equipements: [],
       photos: [],
+      formats: {
+        create: [
+          {
+            format: (format as FormatEquipe | undefined) ?? "cinq",
+            capacite: 10,
+            prixParCreneau: (prixParCreneau as number | undefined) ?? 60000,
+          },
+        ],
+      },
       horaires: { create: [{ jourSemaine: 1, ouvre: "08:00", ferme: "11:00" }] },
-      ...overrides,
+      ...reste,
     },
   });
 }
@@ -61,7 +70,7 @@ describe("GET /api/terrains", () => {
   });
 
   it("rejects an invalid query with 400", async () => {
-    const response = await listGET(listRequest("?format=neuf"));
+    const response = await listGET(listRequest("?format=vingt-deux"));
     expect(response.status).toBe(400);
   });
 

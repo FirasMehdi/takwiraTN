@@ -1,8 +1,14 @@
-import type { Prisma, TerrainFormat, TerrainType } from "@prisma/client";
+import type { FormatEquipe, Prisma, TerrainType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { generateSlots, type Slot } from "@/lib/terrains/slots";
 import { findTakenSlots, findTakenSlotsForTerrains } from "@/lib/reservations/queries";
 import type { TerrainListQuery } from "@/lib/validation/terrain";
+
+export type TerrainFormatResume = {
+  format: FormatEquipe;
+  capacite: number;
+  prixParCreneau: number;
+};
 
 export type TerrainResume = {
   id: string;
@@ -10,8 +16,8 @@ export type TerrainResume = {
   ville: string;
   adresse: string;
   type: TerrainType;
-  format: TerrainFormat;
-  prixParCreneau: number;
+  formats: TerrainFormatResume[];
+  prixAPartirDe: number;
   photo: string | null;
   creneauxLibres: number;
 };
@@ -25,8 +31,7 @@ export type TerrainDetail = {
   latitude: number | null;
   longitude: number | null;
   type: TerrainType;
-  format: TerrainFormat;
-  prixParCreneau: number;
+  formats: TerrainFormatResume[];
   dureeCreneauMinutes: number;
   equipements: string[];
   photos: string[];
@@ -52,6 +57,21 @@ function toMinutes(hhmm: string): number {
   return heures * 60 + minutes;
 }
 
+function toFormatResumes(
+  formats: { format: FormatEquipe; capacite: number; prixParCreneau: number }[]
+): TerrainFormatResume[] {
+  return formats.map((f) => ({
+    format: f.format,
+    capacite: f.capacite,
+    prixParCreneau: f.prixParCreneau,
+  }));
+}
+
+function prixAPartirDe(formats: TerrainFormatResume[]): number {
+  if (formats.length === 0) return 0;
+  return Math.min(...formats.map((f) => f.prixParCreneau));
+}
+
 export async function findTerrains(
   query: TerrainListQuery,
   maintenant: Date = new Date()
@@ -61,16 +81,21 @@ export async function findTerrains(
   if (query.ville) {
     where.ville = { equals: query.ville, mode: "insensitive" };
   }
-  if (query.format) {
-    where.format = query.format;
-  }
-  if (query.prixMax !== undefined) {
-    where.prixParCreneau = { lte: query.prixMax };
+  // Un même "offre" doit satisfaire le format ET le prix max ensemble —
+  // sinon un terrain à 5v5 cher mais 11v11 pas cher passerait à tort un
+  // filtre "5v5, prix max bas".
+  if (query.format || query.prixMax !== undefined) {
+    where.formats = {
+      some: {
+        ...(query.format ? { format: query.format } : {}),
+        ...(query.prixMax !== undefined ? { prixParCreneau: { lte: query.prixMax } } : {}),
+      },
+    };
   }
 
   const terrains = await prisma.terrain.findMany({
     where,
-    include: { horaires: true },
+    include: { horaires: true, formats: true },
     orderBy: { nom: "asc" },
     take: 100, // Sécurité : borne le coût de la requête et de la génération de
                // créneaux qui suit. Ce n'est pas une pagination — juste un
@@ -90,6 +115,7 @@ export async function findTerrains(
       taken: parTerrain.get(terrain.id) ?? [],
       maintenant,
     });
+    const formats = toFormatResumes(terrain.formats);
 
     return {
       terrain,
@@ -100,8 +126,8 @@ export async function findTerrains(
         ville: terrain.ville,
         adresse: terrain.adresse,
         type: terrain.type,
-        format: terrain.format,
-        prixParCreneau: terrain.prixParCreneau,
+        formats,
+        prixAPartirDe: prixAPartirDe(formats),
         photo: terrain.photos[0] ?? null,
         creneauxLibres: creneaux.filter((c) => c.disponible).length,
       },
@@ -129,7 +155,7 @@ export async function findTerrainById(
 ): Promise<TerrainDetail | null> {
   const terrain = await prisma.terrain.findFirst({
     where: { id, statut: "actif" },
-    include: { horaires: true },
+    include: { horaires: true, formats: true },
   });
 
   if (!terrain) return null;
@@ -147,8 +173,7 @@ export async function findTerrainById(
     latitude: terrain.latitude,
     longitude: terrain.longitude,
     type: terrain.type,
-    format: terrain.format,
-    prixParCreneau: terrain.prixParCreneau,
+    formats: toFormatResumes(terrain.formats),
     dureeCreneauMinutes: terrain.dureeCreneauMinutes,
     equipements: terrain.equipements,
     photos: terrain.photos,

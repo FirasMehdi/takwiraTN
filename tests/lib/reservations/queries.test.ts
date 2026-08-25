@@ -16,8 +16,7 @@ async function creerTerrain() {
       adresse: "Adresse",
       ville: "Tunis",
       type: "gazon_synthetique",
-      format: "cinq",
-      prixParCreneau: 50000,
+      formats: { create: [{ format: "cinq", capacite: 10, prixParCreneau: 50000 }] },
       horaires: { create: [{ jourSemaine: 1, ouvre: "08:00", ferme: "20:00" }] },
     },
   });

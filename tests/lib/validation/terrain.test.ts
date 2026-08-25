@@ -27,7 +27,7 @@ describe("terrainListQuerySchema", () => {
   });
 
   it("rejects an invalid format value", () => {
-    const result = terrainListQuerySchema.safeParse({ format: "neuf" });
+    const result = terrainListQuerySchema.safeParse({ format: "vingt-deux" });
     expect(result.success).toBe(false);
   });
 

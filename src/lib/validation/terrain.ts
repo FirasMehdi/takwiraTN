@@ -20,9 +20,10 @@ export const heureSchema = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Heure invalide (format attendu : HH:MM)");
 
-export const formatSchema = z.enum(["cinq", "sept", "onze"], {
-  errorMap: () => ({ message: "Format invalide" }),
-});
+export const formatSchema = z.enum(
+  ["quatre", "cinq", "six", "sept", "huit", "neuf", "onze"],
+  { errorMap: () => ({ message: "Format invalide" }) }
+);
 
 export const terrainListQuerySchema = z.object({
   ville: z.string().trim().min(1, "La ville ne peut pas être vide").max(80, "Le nom de la ville est trop long").optional(),

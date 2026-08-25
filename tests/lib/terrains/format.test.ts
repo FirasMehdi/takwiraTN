@@ -31,6 +31,22 @@ describe("libelleFormat", () => {
     expect(libelleFormat("sept")).toBe("7 contre 7");
     expect(libelleFormat("onze")).toBe("11 contre 11");
   });
+
+  it("maps quatre to '4 contre 4'", () => {
+    expect(libelleFormat("quatre")).toBe("4 contre 4");
+  });
+
+  it("maps six to '6 contre 6'", () => {
+    expect(libelleFormat("six")).toBe("6 contre 6");
+  });
+
+  it("maps huit to '8 contre 8'", () => {
+    expect(libelleFormat("huit")).toBe("8 contre 8");
+  });
+
+  it("maps neuf to '9 contre 9'", () => {
+    expect(libelleFormat("neuf")).toBe("9 contre 9");
+  });
 });
 
 describe("libelleType", () => {

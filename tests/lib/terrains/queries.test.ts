@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import type { FormatEquipe } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { resetDb } from "../../setup/testDb";
 import { findTerrains, findTerrainById } from "@/lib/terrains/queries";
@@ -7,20 +8,39 @@ import { hashPassword } from "@/lib/password";
 // 2026-09-07 is a Monday.
 const LUNDI_TOT = new Date(2026, 8, 7, 6, 0);
 
+const CAPACITES: Record<FormatEquipe, number> = {
+  quatre: 8,
+  cinq: 10,
+  six: 12,
+  sept: 14,
+  huit: 16,
+  neuf: 18,
+  onze: 22,
+};
+
 async function creerTerrain(overrides: Record<string, unknown> = {}) {
+  const { format, prixParCreneau, ...reste } = overrides;
+  const formatValeur = (format as FormatEquipe | undefined) ?? "cinq";
   return prisma.terrain.create({
     data: {
       nom: "Terrain Test",
       adresse: "Rue Test",
       ville: "Tunis",
       type: "gazon_synthetique",
-      format: "cinq",
-      prixParCreneau: 60000,
       dureeCreneauMinutes: 90,
       equipements: [],
       photos: [],
+      formats: {
+        create: [
+          {
+            format: formatValeur,
+            capacite: CAPACITES[formatValeur],
+            prixParCreneau: (prixParCreneau as number | undefined) ?? 60000,
+          },
+        ],
+      },
       horaires: { create: [{ jourSemaine: 1, ouvre: "08:00", ferme: "11:00" }] },
-      ...overrides,
+      ...reste,
     },
   });
 }
@@ -116,6 +136,37 @@ describe("findTerrains", () => {
       LUNDI_TOT
     );
     expect(resultats).toHaveLength(0);
+  });
+
+  it("filters by format AND prixMax together against the same offer, not either alone", async () => {
+    const terrain = await prisma.terrain.create({
+      data: {
+        nom: "Multi-Format Arena", ville: "Tunis", adresse: "1 Rue Test",
+        type: "gazon_synthetique", dureeCreneauMinutes: 90,
+        formats: {
+          create: [
+            { format: "cinq", capacite: 10, prixParCreneau: 100000 },
+            { format: "onze", capacite: 22, prixParCreneau: 30000 },
+          ],
+        },
+        horaires: { create: [{ jourSemaine: 1, ouvre: "08:00", ferme: "22:00" }] },
+      },
+    });
+
+    // cinq is expensive (100000), onze is cheap (30000) — a filter for
+    // "cinq AND prixMax 50000" must match NEITHER offer, not fall back to
+    // matching the cheap onze offer.
+    const resultats = await findTerrains(
+      { format: "cinq", prixMax: 50000 },
+      new Date(2026, 0, 5) // a Monday
+    );
+    expect(resultats.find((r) => r.id === terrain.id)).toBeUndefined();
+
+    const resultatsOnze = await findTerrains(
+      { format: "onze", prixMax: 50000 },
+      new Date(2026, 0, 5)
+    );
+    expect(resultatsOnze.find((r) => r.id === terrain.id)).toBeDefined();
   });
 });
 

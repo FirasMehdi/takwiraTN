@@ -15,8 +15,7 @@ async function creerTerrain() {
       adresse: "Adresse",
       ville: "Tunis",
       type: "gazon_synthetique",
-      format: "cinq",
-      prixParCreneau: 50000,
+      formats: { create: [{ format: "cinq", capacite: 10, prixParCreneau: 50000 }] },
       // dureeCreneauMinutes explicite (60) : avec le défaut du schéma (90),
       // 08:00-20:00 ne génère aucun créneau démarrant exactement à 18:00
       // (08:00, 09:30, ..., 17:00, 18:30 — 18:00 n'en fait pas partie).
