@@ -7,12 +7,12 @@ développement local, sans utilisateurs réels ni déploiement.
 
 **Chacun de ces points doit être traité avant la première mise en ligne.**
 
-## 1. Envoi réel des e-mails de réinitialisation — implémenté (Resend)
+## 1. Envoi réel des e-mails de réinitialisation — BLOQUANT pour les vrais utilisateurs
 
 **État actuel :** `src/lib/mailer.ts` envoie réellement l'e-mail via
-[Resend](https://resend.com) quand `RESEND_API_KEY` est configuré. En
-développement (`NODE_ENV !== "production"`), le lien continue de s'afficher
-dans la console — aucune clé nécessaire en local.
+[Resend](https://resend.com) quand `RESEND_API_KEY` est configuré — c'est fait
+et déployé. En développement (`NODE_ENV !== "production"`), le lien continue
+de s'afficher dans la console — aucune clé nécessaire en local.
 
 **Protection inchangée :** en production, si `RESEND_API_KEY` est absent, le
 lien n'est **toujours pas** journalisé — la fonction refuse et signale la
@@ -21,15 +21,27 @@ configuration manquante à la place. Un lien de réinitialisation dans des logs
 en cas d'échec d'envoi côté Resend (clé invalide, erreur réseau...), le lien
 n'apparaît jamais dans les logs — seul le message d'erreur de Resend l'est.
 
-**À faire avant le premier déploiement :**
-1. Créer un compte [resend.com](https://resend.com) (gratuit jusqu'à 3 000
-   e-mails/mois).
-2. Générer une clé API et la définir comme `RESEND_API_KEY` dans les
-   variables d'environnement de production (jamais dans un fichier commité).
-3. Optionnel : vérifier un domaine dans le tableau de bord Resend et définir
-   `EMAIL_FROM` en conséquence — sans ça, les e-mails partent du domaine de
-   test `onboarding@resend.dev`, qui fonctionne mais est moins professionnel
-   et peut atterrir plus facilement en spam pour certains destinataires.
+**Ce qui reste bloquant : le mode sandbox de Resend.** Sans domaine
+d'envoi vérifié dans Resend, le compte reste en mode sandbox — Resend refuse
+d'envoyer à **toute** adresse réelle (Gmail, Yahoo, etc.), sauf à l'adresse
+avec laquelle le compte Resend a été créé. Vérifié en conditions réelles le
+2026-08-25 : une tentative vers une adresse `@example.com` a été rejetée avec
+`Invalid "to" field. Please use our testing email address instead of domains
+like "example.com"`. **Tant qu'aucun domaine n'est vérifié, seul le
+propriétaire du compte Resend peut recevoir un e-mail de réinitialisation
+— aucun autre utilisateur ne le peut,** même si le code fonctionne
+correctement de bout en bout.
+
+**À faire avant d'ouvrir l'inscription à de vrais utilisateurs :**
+1. ~~Créer un compte resend.com~~ — fait.
+2. ~~Générer une clé API et la définir comme `RESEND_API_KEY` sur Vercel~~ — fait.
+3. **Acheter un nom de domaine**, puis le **vérifier dans le tableau de bord
+   Resend** (Domains → Add Domain → ajouter les enregistrements DNS indiqués
+   chez le registrar) et définir `EMAIL_FROM` en conséquence
+   (`Takwria TN <no-reply@votredomaine.tn>`). C'est ce qui lève la
+   restriction sandbox — pas seulement une question d'image de marque.
+   Décision explicite du 2026-08-25 : reporté, l'application reste en phase
+   de test avec un domaine `.vercel.app`.
 
 **Important — l'envoi est `await`é, pas fire-and-forget :** sur une
 plateforme serverless (Vercel), le processus peut être gelé juste après le
