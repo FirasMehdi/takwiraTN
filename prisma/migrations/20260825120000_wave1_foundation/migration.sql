@@ -80,6 +80,7 @@ SELECT
   gen_random_uuid()::text AS "conversationId",
   MIN("createdAt") AS "createdAt"
 FROM "Message"
+WHERE "expediteurId" != "destinataireId"
 GROUP BY LEAST("expediteurId", "destinataireId"), GREATEST("expediteurId", "destinataireId");
 
 INSERT INTO "Conversation" ("id", "estGroupe", "createdAt")

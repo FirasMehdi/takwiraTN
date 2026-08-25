@@ -123,6 +123,7 @@ model TerrainFormatOffre {
 
   format         FormatEquipe
   capacite       Int
+  /// Prix d'un créneau, en millimes (1 TND = 1000 millimes).
   prixParCreneau Int
 
   @@unique([terrainId, format])
@@ -272,6 +273,7 @@ model Message {
   luAt      DateTime?
 
   @@index([conversationId])
+  @@index([expediteurId])
 }
 
 model Notification {
