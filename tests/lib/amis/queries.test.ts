@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { resetDb } from "../../setup/testDb";
 import { hashPassword } from "@/lib/password";
@@ -11,6 +11,12 @@ import {
   findDemandesRecues,
   sontAmis,
 } from "@/lib/amis/queries";
+
+vi.mock("@/lib/notifications/queries", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/notifications/queries")>();
+  return { ...actual, creerNotification: vi.fn(actual.creerNotification) };
+});
+import { creerNotification } from "@/lib/notifications/queries";
 
 async function creerUtilisateur(email: string, prenom = "Joueur") {
   return prisma.user.create({
@@ -25,6 +31,7 @@ async function creerUtilisateur(email: string, prenom = "Joueur") {
 describe("amis/queries", () => {
   beforeEach(async () => {
     await resetDb();
+    vi.mocked(creerNotification).mockClear();
   });
 
   afterAll(async () => {
@@ -127,5 +134,27 @@ describe("amis/queries", () => {
     const notifications = await prisma.notification.findMany({ where: { userId: destinataire.id } });
     expect(notifications).toHaveLength(1);
     expect(notifications[0].type).toBe("demande_ami");
+  });
+
+  it("still creates the request and returns ok when notification creation fails (fresh request)", async () => {
+    const a = await creerUtilisateur("a@example.com");
+    const b = await creerUtilisateur("b@example.com");
+    vi.mocked(creerNotification).mockRejectedValueOnce(new Error("boom"));
+
+    const resultat = await envoyerDemande(a.id, b.id);
+    expect(resultat).toEqual({ ok: true, id: expect.any(String) });
+    expect(await statutRelation(a.id, b.id)).toBe("demande_envoyee");
+  });
+
+  it("still reactivates the request and returns ok when notification creation fails (after refusal)", async () => {
+    const a = await creerUtilisateur("a@example.com");
+    const b = await creerUtilisateur("b@example.com");
+    const { id } = (await envoyerDemande(a.id, b.id)) as { id: string };
+    await refuserDemande(id, b.id);
+
+    vi.mocked(creerNotification).mockRejectedValueOnce(new Error("boom"));
+    const resultat = await envoyerDemande(a.id, b.id);
+    expect(resultat).toEqual({ ok: true, id });
+    expect(await statutRelation(a.id, b.id)).toBe("demande_envoyee");
   });
 });

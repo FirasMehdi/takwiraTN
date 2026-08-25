@@ -182,6 +182,7 @@ describe("findTerrainById", () => {
 
     expect(resultat?.nom).toBe("Terrain Test");
     expect(resultat?.creneaux.map((c) => c.debut)).toEqual(["08:00", "09:30"]);
+    expect(resultat?.prixAPartirDe).toBe(60000);
   });
 
   it("returns null for an unknown id", async () => {

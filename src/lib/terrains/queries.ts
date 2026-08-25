@@ -32,6 +32,7 @@ export type TerrainDetail = {
   longitude: number | null;
   type: TerrainType;
   formats: TerrainFormatResume[];
+  prixAPartirDe: number;
   dureeCreneauMinutes: number;
   equipements: string[];
   photos: string[];
@@ -163,6 +164,7 @@ export async function findTerrainById(
   const jour = date ? parseDateLocale(date) : maintenant;
   const jourStr = formatDateLocale(jour);
   const taken = await findTakenSlots(id, jourStr);
+  const formats = toFormatResumes(terrain.formats);
 
   return {
     id: terrain.id,
@@ -173,7 +175,8 @@ export async function findTerrainById(
     latitude: terrain.latitude,
     longitude: terrain.longitude,
     type: terrain.type,
-    formats: toFormatResumes(terrain.formats),
+    formats,
+    prixAPartirDe: prixAPartirDe(formats),
     dureeCreneauMinutes: terrain.dureeCreneauMinutes,
     equipements: terrain.equipements,
     photos: terrain.photos,

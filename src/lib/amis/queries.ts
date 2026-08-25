@@ -51,22 +51,38 @@ export async function envoyerDemande(
       where: { id: existante.id },
       data: { demandeurId, destinataireId, statut: "en_attente", respondedAt: null },
     });
+    try {
+      await creerNotification({
+        userId: destinataireId,
+        type: "demande_ami",
+        contenu: "Vous avez reçu une nouvelle demande d'ami.",
+        lien: "/amis",
+      });
+    } catch (err) {
+      console.error(
+        `[amis] échec de la création de la notification pour la demande ${amitie.id} : ${
+          err instanceof Error ? err.message : "erreur inconnue"
+        }`
+      );
+    }
+    return { ok: true, id: amitie.id };
+  }
+
+  const amitie = await prisma.amitie.create({ data: { demandeurId, destinataireId } });
+  try {
     await creerNotification({
       userId: destinataireId,
       type: "demande_ami",
       contenu: "Vous avez reçu une nouvelle demande d'ami.",
       lien: "/amis",
     });
-    return { ok: true, id: amitie.id };
+  } catch (err) {
+    console.error(
+      `[amis] échec de la création de la notification pour la demande ${amitie.id} : ${
+        err instanceof Error ? err.message : "erreur inconnue"
+      }`
+    );
   }
-
-  const amitie = await prisma.amitie.create({ data: { demandeurId, destinataireId } });
-  await creerNotification({
-    userId: destinataireId,
-    type: "demande_ami",
-    contenu: "Vous avez reçu une nouvelle demande d'ami.",
-    lien: "/amis",
-  });
   return { ok: true, id: amitie.id };
 }
 

@@ -1,9 +1,15 @@
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { resetDb } from "../../setup/testDb";
 import { hashPassword } from "@/lib/password";
 import { envoyerDemande, accepterDemande } from "@/lib/amis/queries";
 import { envoyerMessage, findConversation, findConversations } from "@/lib/messages/queries";
+
+vi.mock("@/lib/notifications/queries", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/notifications/queries")>();
+  return { ...actual, creerNotification: vi.fn(actual.creerNotification) };
+});
+import { creerNotification } from "@/lib/notifications/queries";
 
 async function creerUtilisateur(email: string, prenom = "Joueur") {
   return prisma.user.create({
@@ -26,6 +32,7 @@ async function creerAmis(prenomA: string, prenomB: string) {
 describe("messages/queries", () => {
   beforeEach(async () => {
     await resetDb();
+    vi.mocked(creerNotification).mockClear();
   });
 
   afterAll(async () => {
@@ -70,5 +77,23 @@ describe("messages/queries", () => {
     expect(conversations).toHaveLength(1);
     expect(conversations[0].autreUserId).toBe(b.id);
     expect(conversations[0].dernierMessage).toBe("Message récent");
+  });
+
+  it("returns no conversation when looking up a conversation with oneself", async () => {
+    const a = await creerUtilisateur("a@example.com");
+
+    const resultat = await findConversation(a.id, a.id);
+    expect(resultat).toEqual([]);
+  });
+
+  it("still sends the message and returns ok when notification creation fails", async () => {
+    const { a, b } = await creerAmis("Amine", "Bilel");
+    vi.mocked(creerNotification).mockRejectedValueOnce(new Error("boom"));
+
+    const resultat = await envoyerMessage(a.id, b.id, "On joue quand ?");
+    expect(resultat).toEqual({ ok: true, id: expect.any(String) });
+
+    const conversation = await findConversation(a.id, b.id);
+    expect(conversation).toHaveLength(1);
   });
 });

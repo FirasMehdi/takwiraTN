@@ -27,7 +27,7 @@ export async function generateMetadata({
   const terrain = await getTerrain(id);
   if (!terrain) return { title: "Terrain introuvable" };
   const formats = terrain.formats.map((f) => libelleFormat(f.format)).join(", ");
-  const prixMin = Math.min(...terrain.formats.map((f) => f.prixParCreneau));
+  const prixMin = terrain.prixAPartirDe;
   return {
     title: `${terrain.nom} — ${terrain.ville}`,
     description: `${formats} à ${terrain.ville}. À partir de ${formatPrix(prixMin)} le créneau.`,

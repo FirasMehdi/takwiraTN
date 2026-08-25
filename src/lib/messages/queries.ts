@@ -35,6 +35,10 @@ async function trouverOuCreerConversation1a1(
   userIdA: string,
   userIdB: string
 ): Promise<string> {
+  if (userIdA === userIdB) {
+    throw new Error("trouverOuCreerConversation1a1: userIdA et userIdB sont identiques");
+  }
+
   const existante = await tx.conversation.findFirst({
     where: {
       estGroupe: false,
@@ -75,12 +79,20 @@ export async function envoyerMessage(
     return tx.message.create({ data: { conversationId, expediteurId, contenu } });
   });
 
-  await creerNotification({
-    userId: destinataireId,
-    type: "message",
-    contenu: "Vous avez reçu un nouveau message.",
-    lien: `/amis/${expediteurId}`,
-  });
+  try {
+    await creerNotification({
+      userId: destinataireId,
+      type: "message",
+      contenu: "Vous avez reçu un nouveau message.",
+      lien: `/amis/${expediteurId}`,
+    });
+  } catch (err) {
+    console.error(
+      `[messages] échec de la création de la notification pour le message ${message.id} : ${
+        err instanceof Error ? err.message : "erreur inconnue"
+      }`
+    );
+  }
 
   return { ok: true, id: message.id };
 }
@@ -89,6 +101,8 @@ export async function findConversation(
   userIdA: string,
   userIdB: string
 ): Promise<MessageResume[]> {
+  if (userIdA === userIdB) return [];
+
   const conversation = await prisma.conversation.findFirst({
     where: {
       estGroupe: false,
