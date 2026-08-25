@@ -100,8 +100,12 @@ export function TerrainFiltres({ valeurs }: { valeurs: ValeursFiltres }) {
             className={champClasse}
           >
             <option value="">Tous</option>
+            <option value="quatre">4 contre 4</option>
             <option value="cinq">5 contre 5</option>
+            <option value="six">6 contre 6</option>
             <option value="sept">7 contre 7</option>
+            <option value="huit">8 contre 8</option>
+            <option value="neuf">9 contre 9</option>
             <option value="onze">11 contre 11</option>
           </select>
         </div>

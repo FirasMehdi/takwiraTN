@@ -26,9 +26,11 @@ export async function generateMetadata({
   const { id } = await params;
   const terrain = await getTerrain(id);
   if (!terrain) return { title: "Terrain introuvable" };
+  const formats = terrain.formats.map((f) => libelleFormat(f.format)).join(", ");
+  const prixMin = Math.min(...terrain.formats.map((f) => f.prixParCreneau));
   return {
     title: `${terrain.nom} — ${terrain.ville}`,
-    description: `${libelleFormat(terrain.format)} à ${terrain.ville}. ${formatPrix(terrain.prixParCreneau)} le créneau.`,
+    description: `${formats} à ${terrain.ville}. À partir de ${formatPrix(prixMin)} le créneau.`,
   };
 }
 
@@ -78,24 +80,31 @@ export default async function TerrainDetailPage({
 
           <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
             <div>
-              <dt className="text-gray-600">Format</dt>
-              <dd className="font-medium text-anthracite">{libelleFormat(terrain.format)}</dd>
-            </div>
-            <div>
               <dt className="text-gray-600">Surface</dt>
               <dd className="font-medium text-anthracite">{libelleType(terrain.type)}</dd>
-            </div>
-            <div>
-              <dt className="text-gray-600">Tarif</dt>
-              <dd className="font-medium text-primary">
-                {formatPrix(terrain.prixParCreneau)}
-              </dd>
             </div>
             <div>
               <dt className="text-gray-600">Durée</dt>
               <dd className="font-medium text-anthracite">{terrain.dureeCreneauMinutes} minutes</dd>
             </div>
           </dl>
+
+          <section className="mt-4">
+            <h2 className="text-sm font-semibold text-anthracite">Formats disponibles</h2>
+            <ul className="mt-2 flex flex-col gap-2">
+              {terrain.formats.map((f) => (
+                <li
+                  key={f.format}
+                  className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                >
+                  <span className="text-anthracite">
+                    {libelleFormat(f.format)} · {f.capacite} joueurs max
+                  </span>
+                  <span className="font-semibold text-primary">{formatPrix(f.prixParCreneau)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
 
           {terrain.equipements.length > 0 && (
             <section className="mt-4">

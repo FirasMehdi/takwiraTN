@@ -45,12 +45,12 @@ export function TerrainCard({ terrain }: { terrain: TerrainResume }) {
       </p>
 
       <p className="mt-1 text-sm text-gray-600">
-        {libelleFormat(terrain.format)} · {libelleType(terrain.type)}
+        {terrain.formats.map((f) => libelleFormat(f.format)).join(" · ")} · {libelleType(terrain.type)}
       </p>
 
       <div className="mt-3 flex items-center justify-between">
         <span className="font-semibold text-primary">
-          {formatPrix(terrain.prixParCreneau)}
+          À partir de {formatPrix(terrain.prixAPartirDe)}
         </span>
       </div>
     </Link>

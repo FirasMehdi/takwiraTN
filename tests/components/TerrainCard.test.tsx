@@ -1,15 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TerrainCard } from "@/components/terrains/TerrainCard";
+import type { TerrainResume } from "@/lib/terrains/queries";
 
-const terrain = {
+const terrain: TerrainResume = {
   id: "t1",
   nom: "Complexe El Menzah",
   ville: "Tunis",
   adresse: "Rue de Rome",
   type: "gazon_synthetique",
-  format: "cinq",
-  prixParCreneau: 60000,
+  formats: [{ format: "cinq", capacite: 10, prixParCreneau: 60000 }],
+  prixAPartirDe: 60000,
   photo: null,
   creneauxLibres: 3,
 };
