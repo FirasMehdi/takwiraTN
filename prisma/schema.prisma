@@ -30,7 +30,8 @@ model User {
   demandesEnvoyees    Amitie[]  @relation("AmitieDemandeur")
   demandesRecues      Amitie[]  @relation("AmitieDestinataire")
   messagesEnvoyes     Message[] @relation("MessageExpediteur")
-  messagesRecus       Message[] @relation("MessageDestinataire")
+  conversations       ConversationParticipant[]
+  notifications       Notification[]
 }
 
 model PlayerProfile {
@@ -63,9 +64,13 @@ enum TerrainType {
   beton
 }
 
-enum TerrainFormat {
+enum FormatEquipe {
+  quatre
   cinq
+  six
   sept
+  huit
+  neuf
   onze
 }
 
@@ -84,11 +89,8 @@ model Terrain {
   latitude    Float?
   longitude   Float?
 
-  type   TerrainType
-  format TerrainFormat
+  type TerrainType
 
-  /// Prix d'un créneau, en millimes (1 TND = 1000 millimes).
-  prixParCreneau      Int
   dureeCreneauMinutes Int @default(90)
 
   equipements String[]
@@ -102,6 +104,7 @@ model Terrain {
   owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
 
   horaires TerrainHoraire[]
+  formats  TerrainFormatOffre[]
   reservations Reservation[]
   matches Match[]
 
@@ -109,6 +112,21 @@ model Terrain {
 
   @@index([ville])
   @@index([statut])
+}
+
+/// Un terrain peut être proposé en plusieurs formats (5v5, 7v7, 11v11...),
+/// chacun avec sa propre capacité et son propre tarif au créneau.
+model TerrainFormatOffre {
+  id        String       @id @default(cuid())
+  terrainId String
+  terrain   Terrain      @relation(fields: [terrainId], references: [id], onDelete: Cascade)
+
+  format         FormatEquipe
+  capacite       Int
+  prixParCreneau Int
+
+  @@unique([terrainId, format])
+  @@index([terrainId])
 }
 
 model TerrainHoraire {
@@ -219,18 +237,52 @@ model Amitie {
   @@index([destinataireId, statut])
 }
 
+model Conversation {
+  id        String   @id @default(cuid())
+  estGroupe Boolean  @default(false)
+  nom       String?
+  createdAt DateTime @default(now())
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt       DateTime     @default(now())
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
 model Message {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   expediteurId   String
-  expediteur     User     @relation("MessageExpediteur", fields: [expediteurId], references: [id], onDelete: Cascade)
-  destinataireId String
-  destinataire   User     @relation("MessageDestinataire", fields: [destinataireId], references: [id], onDelete: Cascade)
+  expediteur     User         @relation("MessageExpediteur", fields: [expediteurId], references: [id], onDelete: Cascade)
 
   contenu String
 
   createdAt DateTime  @default(now())
   luAt      DateTime?
 
-  @@index([expediteurId, destinataireId])
-  @@index([destinataireId, expediteurId])
+  @@index([conversationId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  contenu   String
+  lien      String?
+  lu        Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, lu])
 }
