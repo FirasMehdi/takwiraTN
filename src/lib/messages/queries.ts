@@ -1,5 +1,7 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sontAmis } from "@/lib/amis/queries";
+import { creerNotification } from "@/lib/notifications/queries";
 
 export type MessageResume = {
   id: string;
@@ -20,6 +22,41 @@ export type EnvoyerMessageResultat =
   | { ok: false; raison: "pas_amis" };
 
 /**
+ * Retrouve la conversation 1:1 entre deux utilisateurs, ou la crée. Course
+ * connue et acceptée : deux premiers messages envoyés au même instant entre
+ * deux utilisateurs qui ne se sont encore jamais écrit peuvent, en théorie,
+ * créer deux conversations distinctes au lieu d'une — cas rare (il faut que
+ * ce soit littéralement leur tout premier échange) et sans conséquence pire
+ * qu'un historique swindé en deux fils ; pas de verrou supplémentaire pour
+ * ça ici.
+ */
+async function trouverOuCreerConversation1a1(
+  tx: Prisma.TransactionClient,
+  userIdA: string,
+  userIdB: string
+): Promise<string> {
+  const existante = await tx.conversation.findFirst({
+    where: {
+      estGroupe: false,
+      AND: [
+        { participants: { some: { userId: userIdA } } },
+        { participants: { some: { userId: userIdB } } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (existante) return existante.id;
+
+  const creee = await tx.conversation.create({
+    data: {
+      estGroupe: false,
+      participants: { create: [{ userId: userIdA }, { userId: userIdB }] },
+    },
+  });
+  return creee.id;
+}
+
+/**
  * L'amitié est vérifiée à l'écriture, pas seulement à l'affichage du bouton
  * côté client — un utilisateur ne peut pas contourner l'exigence en
  * appelant directement l'API.
@@ -32,9 +69,19 @@ export async function envoyerMessage(
   if (!(await sontAmis(expediteurId, destinataireId))) {
     return { ok: false, raison: "pas_amis" };
   }
-  const message = await prisma.message.create({
-    data: { expediteurId, destinataireId, contenu },
+
+  const message = await prisma.$transaction(async (tx) => {
+    const conversationId = await trouverOuCreerConversation1a1(tx, expediteurId, destinataireId);
+    return tx.message.create({ data: { conversationId, expediteurId, contenu } });
   });
+
+  await creerNotification({
+    userId: destinataireId,
+    type: "message",
+    contenu: "Vous avez reçu un nouveau message.",
+    lien: `/amis/${expediteurId}`,
+  });
+
   return { ok: true, id: message.id };
 }
 
@@ -42,13 +89,20 @@ export async function findConversation(
   userIdA: string,
   userIdB: string
 ): Promise<MessageResume[]> {
-  const messages = await prisma.message.findMany({
+  const conversation = await prisma.conversation.findFirst({
     where: {
-      OR: [
-        { expediteurId: userIdA, destinataireId: userIdB },
-        { expediteurId: userIdB, destinataireId: userIdA },
+      estGroupe: false,
+      AND: [
+        { participants: { some: { userId: userIdA } } },
+        { participants: { some: { userId: userIdB } } },
       ],
     },
+    select: { id: true },
+  });
+  if (!conversation) return [];
+
+  const messages = await prisma.message.findMany({
+    where: { conversationId: conversation.id },
     orderBy: { createdAt: "asc" },
     take: 200,
   });
@@ -61,36 +115,36 @@ export async function findConversation(
 }
 
 /**
- * Une conversation par interlocuteur distinct, réduite en mémoire à partir
- * des messages — pas de modèle Conversation séparé, ça suffit à cette
- * échelle (voir le plan). Les messages sont déjà triés du plus récent au
- * plus ancien, donc la première occurrence de chaque interlocuteur est
- * son dernier message.
+ * Une conversation 1:1 par interlocuteur distinct. S'appuie sur le modèle
+ * Conversation (voir trouverOuCreerConversation1a1) plutôt que de réduire
+ * les messages en mémoire comme avant — le modèle porte maintenant aussi
+ * les conversations de groupe (hors périmètre ici, estGroupe: true).
  */
 export async function findConversations(userId: string): Promise<ConversationResume[]> {
-  const messages = await prisma.message.findMany({
-    where: { OR: [{ expediteurId: userId }, { destinataireId: userId }] },
-    orderBy: { createdAt: "desc" },
+  const conversations = await prisma.conversation.findMany({
+    where: { estGroupe: false, participants: { some: { userId } } },
     include: {
-      expediteur: { select: { profile: { select: { prenom: true } } } },
-      destinataire: { select: { profile: { select: { prenom: true } } } },
+      participants: {
+        include: { user: { select: { profile: { select: { prenom: true } } } } },
+      },
+      messages: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
 
-  const parAutreUtilisateur = new Map<string, ConversationResume>();
-  for (const m of messages) {
-    const autreEstExpediteur = m.expediteurId !== userId;
-    const autreUserId = autreEstExpediteur ? m.expediteurId : m.destinataireId;
-    if (parAutreUtilisateur.has(autreUserId)) continue;
-    const autrePrenom =
-      (autreEstExpediteur ? m.expediteur.profile?.prenom : m.destinataire.profile?.prenom) ??
-      "Joueur";
-    parAutreUtilisateur.set(autreUserId, {
-      autreUserId,
-      autrePrenom,
-      dernierMessage: m.contenu,
-      dernierMessageAt: m.createdAt,
+  const resumes: ConversationResume[] = [];
+  for (const conv of conversations) {
+    const dernier = conv.messages[0];
+    if (!dernier) continue; // pas encore de message échangé dans cette conversation
+    const autre = conv.participants.find((p) => p.userId !== userId);
+    if (!autre) continue;
+    resumes.push({
+      autreUserId: autre.userId,
+      autrePrenom: autre.user.profile?.prenom ?? "Joueur",
+      dernierMessage: dernier.contenu,
+      dernierMessageAt: dernier.createdAt,
     });
   }
-  return Array.from(parAutreUtilisateur.values());
+
+  resumes.sort((a, b) => b.dernierMessageAt.getTime() - a.dernierMessageAt.getTime());
+  return resumes;
 }

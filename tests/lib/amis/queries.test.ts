@@ -117,4 +117,15 @@ describe("amis/queries", () => {
     expect(demandes).toHaveLength(1);
     expect(demandes[0].prenom).toBe("Amine");
   });
+
+  it("creates a notification for the recipient on a successful request", async () => {
+    const demandeur = await creerUtilisateur("demandeur@test.com", "Amine");
+    const destinataire = await creerUtilisateur("destinataire@test.com", "Sami");
+
+    await envoyerDemande(demandeur.id, destinataire.id);
+
+    const notifications = await prisma.notification.findMany({ where: { userId: destinataire.id } });
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0].type).toBe("demande_ami");
+  });
 });

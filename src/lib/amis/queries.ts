@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { creerNotification } from "@/lib/notifications/queries";
 
 export type StatutRelation = "aucune" | "demande_envoyee" | "demande_recue" | "amis";
 
@@ -50,10 +51,22 @@ export async function envoyerDemande(
       where: { id: existante.id },
       data: { demandeurId, destinataireId, statut: "en_attente", respondedAt: null },
     });
+    await creerNotification({
+      userId: destinataireId,
+      type: "demande_ami",
+      contenu: "Vous avez reçu une nouvelle demande d'ami.",
+      lien: "/amis",
+    });
     return { ok: true, id: amitie.id };
   }
 
   const amitie = await prisma.amitie.create({ data: { demandeurId, destinataireId } });
+  await creerNotification({
+    userId: destinataireId,
+    type: "demande_ami",
+    contenu: "Vous avez reçu une nouvelle demande d'ami.",
+    lien: "/amis",
+  });
   return { ok: true, id: amitie.id };
 }
 
