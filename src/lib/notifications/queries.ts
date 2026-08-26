@@ -4,7 +4,8 @@ export type NotificationType =
   | "demande_ami"
   | "message"
   | "invitation_match"
-  | "rappel_match";
+  | "rappel_match"
+  | "annulation_match";
 
 export type NotificationResume = {
   id: string;
