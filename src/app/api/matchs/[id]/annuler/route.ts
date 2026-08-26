@@ -13,7 +13,13 @@ export async function POST(
   }
   const { id } = await context.params;
 
-  const resultat = await annulerMatch(id, session.user.id);
+  // Motif temporaire : la route lira le motif envoyé par le client à la
+  // tâche 7, qui remplace entièrement ce fichier.
+  const resultat = await annulerMatch({
+    matchId: id,
+    userId: session.user.id,
+    raison: "personnel",
+  });
   if (!resultat.ok) {
     const status = resultat.raison === "introuvable" ? 404 : 403;
     const message =

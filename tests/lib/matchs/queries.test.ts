@@ -155,7 +155,7 @@ describe("matchs/queries", () => {
     const organisateur = await creerUtilisateur("org@example.com");
     const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 10 });
 
-    const resultat = await annulerMatch(id, organisateur.id);
+    const resultat = await annulerMatch({ matchId: id, userId: organisateur.id, raison: "pas_assez_joueurs" });
     expect(resultat).toEqual({ ok: true });
 
     const detail = await findMatchById(id);
@@ -168,7 +168,7 @@ describe("matchs/queries", () => {
     const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 10 });
     const autre = await creerUtilisateur("autre@example.com");
 
-    const resultat = await annulerMatch(id, autre.id);
+    const resultat = await annulerMatch({ matchId: id, userId: autre.id, raison: "personnel" });
     expect(resultat).toEqual({ ok: false, raison: "non_autorise" });
   });
 
@@ -176,7 +176,7 @@ describe("matchs/queries", () => {
     const terrain = await creerTerrain();
     const organisateur = await creerUtilisateur("org@example.com");
     const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 10 });
-    await annulerMatch(id, organisateur.id);
+    await annulerMatch({ matchId: id, userId: organisateur.id, raison: "personnel" });
 
     const resultats = await findMatchs({});
     expect(resultats).toHaveLength(0);
@@ -477,5 +477,127 @@ describe("matchs/queries", () => {
     });
     expect(apresOrganisateur.map((m) => m.userId)).toEqual([organisateur.id]);
     expect((await findMatchById(id))?.joueursInscrits).toBe(0);
+  });
+
+  it("records an Annulation row queryable by matchId and userId", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 10 });
+
+    expect(
+      await annulerMatch({
+        matchId: id,
+        userId: organisateur.id,
+        raison: "terrain_indisponible",
+      })
+    ).toEqual({ ok: true });
+
+    const parMatch = await prisma.annulation.findUnique({ where: { matchId: id } });
+    expect(parMatch?.raison).toBe("terrain_indisponible");
+    expect(parMatch?.raisonAutre).toBeNull();
+    expect(parMatch?.userId).toBe(organisateur.id);
+    expect(parMatch?.reservationId).toBeNull();
+
+    const parUtilisateur = await prisma.annulation.findMany({
+      where: { userId: organisateur.id },
+    });
+    expect(parUtilisateur).toHaveLength(1);
+    expect((await findMatchById(id))?.statut).toBe("annule");
+  });
+
+  it("stores the free-text precision only for the autre reason", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id);
+
+    expect(
+      await annulerMatch({
+        matchId: id,
+        userId: organisateur.id,
+        raison: "autre",
+        raisonAutre: "  Pluie battante  ",
+      })
+    ).toEqual({ ok: true });
+
+    const annulation = await prisma.annulation.findUnique({ where: { matchId: id } });
+    expect(annulation?.raison).toBe("autre");
+    expect(annulation?.raisonAutre).toBe("Pluie battante");
+  });
+
+  it("refuses the autre reason without a precision", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id);
+
+    expect(
+      await annulerMatch({ matchId: id, userId: organisateur.id, raison: "autre" })
+    ).toEqual({ ok: false, raison: "raison_autre_requise" });
+    expect(await prisma.annulation.count()).toBe(0);
+    expect((await findMatchById(id))?.statut).toBe("ouvert");
+  });
+
+  it("refuses to cancel an already cancelled match", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id);
+    await annulerMatch({ matchId: id, userId: organisateur.id, raison: "personnel" });
+
+    expect(
+      await annulerMatch({ matchId: id, userId: organisateur.id, raison: "conflit_horaire" })
+    ).toEqual({ ok: false, raison: "deja_annule" });
+    expect(await prisma.annulation.count()).toBe(1);
+  });
+
+  it("annulerMatch returns introuvable for an unknown match", async () => {
+    expect(
+      await annulerMatch({ matchId: "inconnu", userId: "u1", raison: "personnel" })
+    ).toEqual({ ok: false, raison: "introuvable" });
+  });
+
+  it("notifies every other participant with the reason, but not the canceller", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 10 });
+    const joueurA = await creerUtilisateur("a@example.com");
+    const joueurB = await creerUtilisateur("b@example.com");
+    await rejoindreMatch(id, joueurA.id);
+    await rejoindreMatch(id, joueurB.id);
+
+    await annulerMatch({
+      matchId: id,
+      userId: organisateur.id,
+      raison: "pas_assez_joueurs",
+    });
+
+    const notifsA = await prisma.notification.findMany({ where: { userId: joueurA.id } });
+    expect(notifsA).toHaveLength(1);
+    expect(notifsA[0].type).toBe("annulation_match");
+    expect(notifsA[0].contenu).toContain("Pas assez de joueurs");
+    expect(notifsA[0].lien).toBe(`/matchs/${id}`);
+
+    expect(await prisma.notification.count({ where: { userId: joueurB.id } })).toBe(1);
+    expect(await prisma.notification.count({ where: { userId: organisateur.id } })).toBe(0);
+  });
+
+  it("notifies participants even when the organizer does not play", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, {
+      joueursMax: 10,
+      organisateurParticipe: false,
+    });
+    const joueur = await creerUtilisateur("a@example.com");
+    await rejoindreMatch(id, joueur.id);
+
+    await annulerMatch({
+      matchId: id,
+      userId: organisateur.id,
+      raison: "autre",
+      raisonAutre: "Terrain inondé",
+    });
+
+    const notifs = await prisma.notification.findMany({ where: { userId: joueur.id } });
+    expect(notifs).toHaveLength(1);
+    expect(notifs[0].contenu).toContain("Terrain inondé");
   });
 });

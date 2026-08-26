@@ -1,5 +1,7 @@
-import type { FormatEquipe, Prisma } from "@prisma/client";
+import type { FormatEquipe, Prisma, RaisonAnnulation } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { creerNotification } from "@/lib/notifications/queries";
+import { libelleRaisonAnnulation } from "@/lib/annulations/libelles";
 
 export type MatchResume = {
   id: string;
@@ -380,18 +382,97 @@ export async function quitterMatch(matchId: string, userId: string): Promise<Qui
   });
 }
 
+export type AnnulerMatchInput = {
+  matchId: string;
+  userId: string;
+  raison: RaisonAnnulation;
+  /** Obligatoire — et seulement utilisé — quand raison vaut "autre". */
+  raisonAutre?: string;
+};
+
 export type AnnulerMatchResultat =
   | { ok: true }
-  | { ok: false; raison: "introuvable" | "non_autorise" };
+  | {
+      ok: false;
+      raison: "introuvable" | "non_autorise" | "deja_annule" | "raison_autre_requise";
+    };
 
-export async function annulerMatch(
-  matchId: string,
-  userId: string
-): Promise<AnnulerMatchResultat> {
-  const match = await prisma.match.findUnique({ where: { id: matchId } });
-  if (!match) return { ok: false, raison: "introuvable" };
-  if (match.organisateurId !== userId) return { ok: false, raison: "non_autorise" };
+/**
+ * Annulation du match entier par son organisateur. Un motif est obligatoire :
+ * il est enregistré dans Annulation, la table unifiée qui sert aussi aux
+ * annulations de réservation, et reste interrogeable par matchId / userId.
+ *
+ * Ne pas confondre avec quitterMatch : un participant qui quitte un match
+ * qu'il a rejoint n'a aucun motif à donner.
+ */
+export async function annulerMatch(input: AnnulerMatchInput): Promise<AnnulerMatchResultat> {
+  const raisonAutre = input.raison === "autre" ? input.raisonAutre?.trim() : undefined;
+  if (input.raison === "autre" && !raisonAutre) {
+    return { ok: false, raison: "raison_autre_requise" };
+  }
 
-  await prisma.match.update({ where: { id: matchId }, data: { statut: "annule" } });
+  const resultat = await prisma.$transaction(async (tx) => {
+    // Même verrou que rejoindreMatch : sérialise deux annulations simultanées
+    // pour que la seconde voie bien le statut déjà passé à "annule" plutôt
+    // que de buter sur l'unicité de Annulation.matchId.
+    const verrou = await tx.$queryRaw<
+      { id: string; organisateurId: string; statut: string }[]
+    >`
+      SELECT id, "organisateurId", statut FROM "Match" WHERE id = ${input.matchId} FOR UPDATE
+    `;
+    const match = verrou[0];
+    if (!match) return { ok: false as const, raison: "introuvable" as const };
+    if (match.organisateurId !== input.userId) {
+      return { ok: false as const, raison: "non_autorise" as const };
+    }
+    if (match.statut === "annule") {
+      return { ok: false as const, raison: "deja_annule" as const };
+    }
+
+    await tx.annulation.create({
+      data: {
+        matchId: input.matchId,
+        userId: input.userId,
+        raison: input.raison,
+        raisonAutre,
+      },
+    });
+
+    await tx.match.update({
+      where: { id: input.matchId },
+      data: { statut: "annule" },
+    });
+
+    const participants = await tx.matchParticipant.findMany({
+      where: { matchId: input.matchId, userId: { not: input.userId } },
+      select: { userId: true },
+    });
+
+    return { ok: true as const, destinataires: participants.map((p) => p.userId) };
+  });
+
+  if (!resultat.ok) return { ok: false, raison: resultat.raison };
+
+  // Notifications après commit et isolées une à une : l'annulation est déjà
+  // écrite, un échec de notification ne doit ni la défaire ni faire échouer
+  // l'appel (même pattern que envoyerMessage et envoyerDemande).
+  const libelle = libelleRaisonAnnulation(input.raison, raisonAutre);
+  for (const destinataireId of resultat.destinataires) {
+    try {
+      await creerNotification({
+        userId: destinataireId,
+        type: "annulation_match",
+        contenu: `Le match auquel vous participez a été annulé. Motif : ${libelle}`,
+        lien: `/matchs/${input.matchId}`,
+      });
+    } catch (err) {
+      console.error(
+        `[matchs] échec de la création de la notification d'annulation du match ${
+          input.matchId
+        } pour ${destinataireId} : ${err instanceof Error ? err.message : "erreur inconnue"}`
+      );
+    }
+  }
+
   return { ok: true };
 }
