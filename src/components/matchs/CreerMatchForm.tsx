@@ -91,7 +91,7 @@ export function CreerMatchForm({ terrains }: { terrains: Terrain[] }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4 px-4 py-6">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-6">
       <div>
         <label htmlFor="terrainId" className="block text-sm font-medium text-anthracite">Terrain</label>
         <select
@@ -233,7 +233,7 @@ export function CreerMatchForm({ terrains }: { terrains: Terrain[] }) {
       )}
       <button
         type="submit"
-        disabled={submitting || terrains.length === 0}
+        disabled={submitting || terrains.length === 0 || formatsDisponibles.length === 0}
         className="rounded-lg bg-primary px-4 py-3 font-semibold text-white transition hover:bg-primary-dark disabled:opacity-50"
       >
         {submitting ? "Création..." : "Créer le match"}

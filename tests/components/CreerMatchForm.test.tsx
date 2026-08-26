@@ -94,9 +94,22 @@ describe("CreerMatchForm", () => {
     } as Response);
 
     render(<CreerMatchForm terrains={terrains} />);
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-09-07" } });
+    fireEvent.change(screen.getByLabelText("Heure de début"), { target: { value: "18:00" } });
+    fireEvent.change(screen.getByLabelText("Heure de fin"), { target: { value: "19:30" } });
     fireEvent.click(screen.getByRole("button", { name: "Créer le match" }));
     await waitFor(() =>
       expect(screen.getByText("Ce terrain ne propose pas ce format")).toBeInTheDocument()
     );
+  });
+
+  it("disables submit when the selected terrain has no format offers", () => {
+    render(
+      <CreerMatchForm terrains={[{ id: "t3", nom: "Terrain Vide", ville: "Sfax", formats: [] }]} />
+    );
+    expect(
+      screen.getByText("Ce terrain ne propose aucun format pour le moment.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Créer le match" })).toBeDisabled();
   });
 });
