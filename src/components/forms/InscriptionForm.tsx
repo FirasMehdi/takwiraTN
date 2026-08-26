@@ -9,6 +9,7 @@ export function InscriptionForm() {
   const [password, setPassword] = useState("");
   const [prenom, setPrenom] = useState("");
   const [ville, setVille] = useState("");
+  const [estProprietaire, setEstProprietaire] = useState(false);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -23,7 +24,7 @@ export function InscriptionForm() {
       const response = await fetch("/api/inscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, prenom, ville }),
+        body: JSON.stringify({ email, password, prenom, ville, estProprietaire }),
       });
 
       if (!response.ok) {
@@ -94,6 +95,18 @@ export function InscriptionForm() {
           required
         />
         {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password[0]}</p>}
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          id="estProprietaire"
+          type="checkbox"
+          checked={estProprietaire}
+          onChange={(e) => setEstProprietaire(e.target.checked)}
+          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+        />
+        <label htmlFor="estProprietaire" className="text-sm text-anthracite">
+          Es-tu propriétaire d&apos;un terrain ?
+        </label>
       </div>
       {error && (
         <p role="alert" className="text-sm text-red-600">

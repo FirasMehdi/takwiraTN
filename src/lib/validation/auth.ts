@@ -19,6 +19,9 @@ export const signupSchema = z.object({
     .max(72, "Le mot de passe ne peut pas dépasser 72 caractères"),
   prenom: z.string().min(1, "Le prénom est requis").max(80, "Le prénom est trop long"),
   ville: z.string().min(1, "La ville est requise").max(80, "Le nom de la ville est trop long"),
+  // Le rôle n'est JAMAIS accepté depuis le client — seul ce booléen l'est,
+  // et le serveur (route /api/inscription) en dérive le rôle réel.
+  estProprietaire: z.boolean().optional().default(false),
 });
 
 export type SignupInput = z.infer<typeof signupSchema>;

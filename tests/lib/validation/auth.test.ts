@@ -118,6 +118,44 @@ describe("signupSchema", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("defaults estProprietaire to false when omitted", () => {
+    const result = signupSchema.safeParse({
+      email: "a@example.com",
+      password: "motdepasse123",
+      prenom: "Sami",
+      ville: "Tunis",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.estProprietaire).toBe(false);
+    }
+  });
+
+  it("accepts estProprietaire set to true", () => {
+    const result = signupSchema.safeParse({
+      email: "a@example.com",
+      password: "motdepasse123",
+      prenom: "Sami",
+      ville: "Tunis",
+      estProprietaire: true,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.estProprietaire).toBe(true);
+    }
+  });
+
+  it("rejects a non-boolean estProprietaire", () => {
+    const result = signupSchema.safeParse({
+      email: "a@example.com",
+      password: "motdepasse123",
+      prenom: "Sami",
+      ville: "Tunis",
+      estProprietaire: "yes",
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("loginSchema", () => {
