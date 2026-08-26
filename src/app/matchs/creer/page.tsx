@@ -20,7 +20,15 @@ export default async function CreerMatchPage() {
           Aucun terrain disponible pour le moment.
         </p>
       ) : (
-        <CreerMatchForm terrains={terrains.map((t) => ({ id: t.id, nom: t.nom, ville: t.ville }))} />
+        <CreerMatchForm
+          terrains={terrains.map((t) => ({
+            id: t.id,
+            nom: t.nom,
+            ville: t.ville,
+            // Ne proposer que les formats réellement offerts par le terrain.
+            formats: t.formats.map((f) => ({ format: f.format, capacite: f.capacite })),
+          }))}
+        />
       )}
     </main>
   );
