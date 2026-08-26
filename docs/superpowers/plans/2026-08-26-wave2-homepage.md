@@ -362,7 +362,13 @@ describe("StatsSection", () => {
     // Computed via the same API the component uses, so the expectation
     // adapts to whatever separator character the runtime's ICU picks
     // (regular space vs. narrow no-break space) instead of hardcoding one.
-    expect(screen.getByText((12345).toLocaleString("fr-FR"))).toBeInTheDocument();
+    // Testing Library's getByText collapses the DOM text's whitespace
+    // (which turns the narrow no-break space U+202F into a regular space)
+    // but does NOT apply that same normalization to the string matcher, so
+    // the raw toLocaleString() output must be pre-collapsed the same way
+    // or the exact-match comparison fails on the differing space character.
+    const attendu = (12345).toLocaleString("fr-FR").replace(/\s+/g, " ");
+    expect(screen.getByText(attendu)).toBeInTheDocument();
   });
 
   it("shows zero rather than hiding a stat when a count is empty", () => {
