@@ -33,7 +33,9 @@ export async function POST(request: Request) {
     date: parsed.data.date,
     heureDebut: parsed.data.heureDebut,
     heureFin: parsed.data.heureFin,
+    format: parsed.data.format,
     joueursMax: parsed.data.joueursMax,
+    organisateurParticipe: parsed.data.organisateurParticipe,
     description: parsed.data.description,
   });
 

@@ -9,6 +9,7 @@ import {
   annulerMatch,
   findMatchs,
   findMatchById,
+  assurerConversationMatch,
 } from "@/lib/matchs/queries";
 
 async function creerTerrain() {
@@ -33,6 +34,31 @@ async function creerUtilisateur(email: string, prenom = "Joueur") {
   });
 }
 
+type MatchOptions = {
+  joueursMax?: number;
+  organisateurParticipe?: boolean;
+  date?: string;
+  heureDebut?: string;
+  heureFin?: string;
+};
+
+async function creerMatchDeTest(
+  terrainId: string,
+  organisateurId: string,
+  options: MatchOptions = {}
+) {
+  return creerMatch({
+    terrainId,
+    organisateurId,
+    date: options.date ?? "2026-09-07",
+    heureDebut: options.heureDebut ?? "18:00",
+    heureFin: options.heureFin ?? "19:30",
+    format: "cinq",
+    joueursMax: options.joueursMax ?? 10,
+    organisateurParticipe: options.organisateurParticipe ?? true,
+  });
+}
+
 describe("matchs/queries", () => {
   beforeEach(async () => {
     await resetDb();
@@ -46,14 +72,7 @@ describe("matchs/queries", () => {
     const terrain = await creerTerrain();
     const organisateur = await creerUtilisateur("org@example.com");
 
-    const { id } = await creerMatch({
-      terrainId: terrain.id,
-      organisateurId: organisateur.id,
-      date: "2026-09-07",
-      heureDebut: "18:00",
-      heureFin: "19:30",
-      joueursMax: 10,
-    });
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 10 });
 
     const detail = await findMatchById(id);
     expect(detail?.joueursInscrits).toBe(1);
@@ -64,14 +83,7 @@ describe("matchs/queries", () => {
   it("lets another player join an open match", async () => {
     const terrain = await creerTerrain();
     const organisateur = await creerUtilisateur("org@example.com");
-    const { id } = await creerMatch({
-      terrainId: terrain.id,
-      organisateurId: organisateur.id,
-      date: "2026-09-07",
-      heureDebut: "18:00",
-      heureFin: "19:30",
-      joueursMax: 2,
-    });
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 2 });
 
     const joueur = await creerUtilisateur("j@example.com");
     const resultat = await rejoindreMatch(id, joueur.id);
@@ -85,14 +97,7 @@ describe("matchs/queries", () => {
   it("rejects joining twice", async () => {
     const terrain = await creerTerrain();
     const organisateur = await creerUtilisateur("org@example.com");
-    const { id } = await creerMatch({
-      terrainId: terrain.id,
-      organisateurId: organisateur.id,
-      date: "2026-09-07",
-      heureDebut: "18:00",
-      heureFin: "19:30",
-      joueursMax: 10,
-    });
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 10 });
 
     const resultat = await rejoindreMatch(id, organisateur.id);
     expect(resultat).toEqual({ ok: false, raison: "deja_inscrit" });
@@ -101,14 +106,7 @@ describe("matchs/queries", () => {
   it("rejects joining a full match", async () => {
     const terrain = await creerTerrain();
     const organisateur = await creerUtilisateur("org@example.com");
-    const { id } = await creerMatch({
-      terrainId: terrain.id,
-      organisateurId: organisateur.id,
-      date: "2026-09-07",
-      heureDebut: "18:00",
-      heureFin: "19:30",
-      joueursMax: 1,
-    });
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 1 });
 
     const joueur = await creerUtilisateur("j@example.com");
     const resultat = await rejoindreMatch(id, joueur.id);
@@ -118,12 +116,7 @@ describe("matchs/queries", () => {
   it("allows exactly one of two players joining the last spot simultaneously", async () => {
     const terrain = await creerTerrain();
     const organisateur = await creerUtilisateur("org@example.com");
-    const { id } = await creerMatch({
-      terrainId: terrain.id,
-      organisateurId: organisateur.id,
-      date: "2026-09-07",
-      heureDebut: "18:00",
-      heureFin: "19:30",
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, {
       joueursMax: 2, // organisateur + une place restante
     });
 
@@ -145,14 +138,7 @@ describe("matchs/queries", () => {
   it("lets a participant leave, which reopens a full match", async () => {
     const terrain = await creerTerrain();
     const organisateur = await creerUtilisateur("org@example.com");
-    const { id } = await creerMatch({
-      terrainId: terrain.id,
-      organisateurId: organisateur.id,
-      date: "2026-09-07",
-      heureDebut: "18:00",
-      heureFin: "19:30",
-      joueursMax: 2,
-    });
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 2 });
     const joueur = await creerUtilisateur("j@example.com");
     await rejoindreMatch(id, joueur.id);
 
@@ -167,14 +153,7 @@ describe("matchs/queries", () => {
   it("lets the organizer cancel the match", async () => {
     const terrain = await creerTerrain();
     const organisateur = await creerUtilisateur("org@example.com");
-    const { id } = await creerMatch({
-      terrainId: terrain.id,
-      organisateurId: organisateur.id,
-      date: "2026-09-07",
-      heureDebut: "18:00",
-      heureFin: "19:30",
-      joueursMax: 10,
-    });
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 10 });
 
     const resultat = await annulerMatch(id, organisateur.id);
     expect(resultat).toEqual({ ok: true });
@@ -186,14 +165,7 @@ describe("matchs/queries", () => {
   it("refuses to let a non-organizer cancel the match", async () => {
     const terrain = await creerTerrain();
     const organisateur = await creerUtilisateur("org@example.com");
-    const { id } = await creerMatch({
-      terrainId: terrain.id,
-      organisateurId: organisateur.id,
-      date: "2026-09-07",
-      heureDebut: "18:00",
-      heureFin: "19:30",
-      joueursMax: 10,
-    });
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 10 });
     const autre = await creerUtilisateur("autre@example.com");
 
     const resultat = await annulerMatch(id, autre.id);
@@ -203,14 +175,7 @@ describe("matchs/queries", () => {
   it("excludes cancelled matches from findMatchs", async () => {
     const terrain = await creerTerrain();
     const organisateur = await creerUtilisateur("org@example.com");
-    const { id } = await creerMatch({
-      terrainId: terrain.id,
-      organisateurId: organisateur.id,
-      date: "2026-09-07",
-      heureDebut: "18:00",
-      heureFin: "19:30",
-      joueursMax: 10,
-    });
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 10 });
     await annulerMatch(id, organisateur.id);
 
     const resultats = await findMatchs({});
@@ -238,5 +203,139 @@ describe("matchs/queries", () => {
     });
     await resetDb();
     expect(await prisma.annulation.count()).toBe(0);
+  });
+
+  it("records the format and keeps the organizer as a participant when they play", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, {
+      joueursMax: 10,
+      organisateurParticipe: true,
+    });
+
+    const detail = await findMatchById(id);
+    expect(detail?.format).toBe("cinq");
+    expect(detail?.organisateurParticipe).toBe(true);
+    expect(detail?.joueursInscrits).toBe(1);
+    expect(detail?.joueursManquants).toBe(9);
+  });
+
+  it("does not take a player slot when the organizer only organizes", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, {
+      joueursMax: 10,
+      organisateurParticipe: false,
+    });
+
+    const detail = await findMatchById(id);
+    expect(detail?.organisateurParticipe).toBe(false);
+    expect(detail?.joueursInscrits).toBe(0);
+    expect(detail?.joueursManquants).toBe(10);
+    expect(detail?.participants).toHaveLength(0);
+  });
+
+  it("creates a group conversation with the organizer inside, even when they do not play", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, {
+      organisateurParticipe: false,
+    });
+
+    const match = await prisma.match.findUnique({
+      where: { id },
+      include: { conversation: { include: { participants: true } } },
+    });
+
+    expect(match?.conversationId).toBeTruthy();
+    expect(match?.conversation?.estGroupe).toBe(true);
+    expect(match?.conversation?.nom).toBe("Match · Terrain Test · 2026-09-07");
+    expect(match?.conversation?.participants.map((p) => p.userId)).toEqual([organisateur.id]);
+  });
+
+  it("never reports a negative number of missing players", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 2 });
+    const joueur = await creerUtilisateur("j@example.com");
+    await rejoindreMatch(id, joueur.id);
+    // Une place supplémentaire occupée en base, hors du chemin normal, pour
+    // vérifier que le calcul est borné et ne descend jamais sous zéro.
+    const intrus = await creerUtilisateur("intrus@example.com");
+    await prisma.matchParticipant.create({ data: { matchId: id, userId: intrus.id } });
+
+    const detail = await findMatchById(id);
+    expect(detail?.joueursInscrits).toBe(3);
+    expect(detail?.joueursManquants).toBe(0);
+
+    const [resume] = await findMatchs({});
+    expect(resume.joueursManquants).toBe(0);
+    expect(resume.format).toBe("cinq");
+    expect(resume.organisateurParticipe).toBe(true);
+  });
+
+  it("reports estTermine and decisionPrise from the match end time and the stored decision", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, {
+      date: "2026-09-07",
+      heureFin: "19:30",
+    });
+
+    const avant = await findMatchById(id, new Date(2026, 8, 7, 19, 29));
+    expect(avant?.estTermine).toBe(false);
+    expect(avant?.decisionPrise).toBe(false);
+
+    const apres = await findMatchById(id, new Date(2026, 8, 7, 19, 31));
+    expect(apres?.estTermine).toBe(true);
+    expect(apres?.decisionPrise).toBe(false);
+
+    await prisma.match.update({
+      where: { id },
+      data: { decisionReservationAt: new Date() },
+    });
+    const decide = await findMatchById(id, new Date(2026, 8, 7, 19, 31));
+    expect(decide?.decisionPrise).toBe(true);
+  });
+
+  it("lazily creates and links a conversation for a legacy match", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const joueur = await creerUtilisateur("j@example.com");
+
+    // Match « legacy » : créé directement en base, sans conversation, comme
+    // ceux qui existaient avant cette vague.
+    const legacy = await prisma.match.create({
+      data: {
+        terrainId: terrain.id,
+        organisateurId: organisateur.id,
+        date: "2026-09-07",
+        heureDebut: "18:00",
+        heureFin: "19:30",
+        joueursMax: 10,
+        participants: { create: [{ userId: organisateur.id }, { userId: joueur.id }] },
+      },
+    });
+    expect(legacy.conversationId).toBeNull();
+
+    const conversationId = await assurerConversationMatch(legacy.id);
+    expect(conversationId).toBeTruthy();
+
+    const membres = await prisma.conversationParticipant.findMany({
+      where: { conversationId: conversationId! },
+      select: { userId: true },
+    });
+    expect(membres.map((m) => m.userId).sort()).toEqual([organisateur.id, joueur.id].sort());
+
+    // Idempotent : un second appel réutilise la conversation existante.
+    expect(await assurerConversationMatch(legacy.id)).toBe(conversationId);
+    expect(await prisma.conversation.count({ where: { estGroupe: true } })).toBe(1);
+  });
+
+  it("returns null from assurerConversationMatch for an unknown match", async () => {
+    expect(await assurerConversationMatch("inconnu")).toBeNull();
   });
 });

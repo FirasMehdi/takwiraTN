@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { FormatEquipe, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export type MatchResume = {
@@ -9,8 +9,15 @@ export type MatchResume = {
   date: string;
   heureDebut: string;
   heureFin: string;
+  /** Null pour les matchs créés avant que le format soit obligatoire. */
+  format: FormatEquipe | null;
   joueursMax: number;
+  /** Nombre de MatchParticipant — la seule source de vérité pour « joueurs trouvés ». */
   joueursInscrits: number;
+  /** joueursMax − joueursInscrits, borné à zéro. */
+  joueursManquants: number;
+  /** L'organisateur occupe-t-il une des places recherchées ? */
+  organisateurParticipe: boolean;
   statut: "ouvert" | "complet" | "annule";
 };
 
@@ -18,8 +25,30 @@ export type MatchDetail = MatchResume & {
   description: string | null;
   organisateurId: string;
   organisateurPrenom: string;
+  conversationId: string | null;
+  reservationId: string | null;
+  /** Le créneau est passé : date + heureFin est antérieur à « maintenant ». */
+  estTermine: boolean;
+  /** L'organisateur a déjà tranché la question de la réservation de fin de match. */
+  decisionPrise: boolean;
   participants: { userId: string; prenom: string }[];
 };
+
+function joueursManquants(joueursMax: number, joueursInscrits: number): number {
+  return Math.max(0, joueursMax - joueursInscrits);
+}
+
+/**
+ * "YYYY-MM-DD" + "HH:MM" locale → Date locale (pas d'aller-retour par l'UTC).
+ * Copie délibérée du helper privé de src/lib/reservations/queries.ts : quatre
+ * lignes, et hisser un module de dates partagé pendant cette vague entrerait
+ * en collision avec les sous-projets développés en parallèle.
+ */
+function versDateLocale(date: string, heure: string): Date {
+  const [annee, mois, jour] = date.split("-").map(Number);
+  const [h, m] = heure.split(":").map(Number);
+  return new Date(annee, mois - 1, jour, h, m);
+}
 
 export async function findMatchs(query: {
   date?: string;
@@ -49,13 +78,19 @@ export async function findMatchs(query: {
     date: m.date,
     heureDebut: m.heureDebut,
     heureFin: m.heureFin,
+    format: m.format,
     joueursMax: m.joueursMax,
     joueursInscrits: m._count.participants,
+    joueursManquants: joueursManquants(m.joueursMax, m._count.participants),
+    organisateurParticipe: m.organisateurParticipe,
     statut: m.statut,
   }));
 }
 
-export async function findMatchById(id: string): Promise<MatchDetail | null> {
+export async function findMatchById(
+  id: string,
+  maintenant: Date = new Date()
+): Promise<MatchDetail | null> {
   const m = await prisma.match.findUnique({
     where: { id },
     include: {
@@ -68,6 +103,8 @@ export async function findMatchById(id: string): Promise<MatchDetail | null> {
   });
   if (!m) return null;
 
+  const inscrits = m.participants.length;
+
   return {
     id: m.id,
     terrainId: m.terrainId,
@@ -76,17 +113,110 @@ export async function findMatchById(id: string): Promise<MatchDetail | null> {
     date: m.date,
     heureDebut: m.heureDebut,
     heureFin: m.heureFin,
+    format: m.format,
     joueursMax: m.joueursMax,
-    joueursInscrits: m.participants.length,
+    joueursInscrits: inscrits,
+    joueursManquants: joueursManquants(m.joueursMax, inscrits),
+    organisateurParticipe: m.organisateurParticipe,
     statut: m.statut,
     description: m.description,
     organisateurId: m.organisateurId,
     organisateurPrenom: m.organisateur.profile?.prenom ?? "Organisateur",
+    conversationId: m.conversationId,
+    reservationId: m.reservationId,
+    estTermine: versDateLocale(m.date, m.heureFin).getTime() <= maintenant.getTime(),
+    decisionPrise: m.decisionReservationAt !== null || m.reservationId !== null,
     participants: m.participants.map((p) => ({
       userId: p.userId,
       prenom: p.user.profile?.prenom ?? "Joueur",
     })),
   };
+}
+
+type MatchPourConversation = {
+  id: string;
+  terrainId: string;
+  organisateurId: string;
+  date: string;
+};
+
+/**
+ * Crée la discussion de groupe d'un match, y inscrit l'organisateur ainsi que
+ * tous les participants déjà présents, puis la lie au match.
+ *
+ * À n'appeler que depuis une transaction ayant déjà verrouillé la ligne Match
+ * (SELECT … FOR UPDATE) : sans ce verrou, deux appels concurrents créeraient
+ * deux conversations pour le même match, et l'unicité de Match.conversationId
+ * n'en attraperait qu'une seule des deux (l'autre resterait orpheline).
+ */
+async function creerConversationPourMatch(
+  tx: Prisma.TransactionClient,
+  match: MatchPourConversation
+): Promise<string> {
+  const terrain = await tx.terrain.findUnique({
+    where: { id: match.terrainId },
+    select: { nom: true },
+  });
+
+  const participants = await tx.matchParticipant.findMany({
+    where: { matchId: match.id },
+    select: { userId: true },
+  });
+  // L'organisateur est membre de la discussion qu'il joue ou non : c'est lui
+  // qui l'anime.
+  const membres = new Set<string>([match.organisateurId, ...participants.map((p) => p.userId)]);
+
+  const conversation = await tx.conversation.create({
+    data: {
+      estGroupe: true,
+      nom: `Match · ${terrain?.nom ?? "Terrain"} · ${match.date}`,
+      participants: { create: [...membres].map((userId) => ({ userId })) },
+    },
+  });
+
+  await tx.match.update({
+    where: { id: match.id },
+    data: { conversationId: conversation.id },
+  });
+
+  return conversation.id;
+}
+
+/**
+ * Garantit qu'un match possède une discussion de groupe, et renvoie son id
+ * (ou null si le match n'existe pas). Les matchs créés avant cette vague n'en
+ * ont pas : plutôt qu'une migration de masse, on la crée à la volée au
+ * premier accès — premier join ou première consultation de la fiche.
+ */
+export async function assurerConversationMatch(matchId: string): Promise<string | null> {
+  // Chemin rapide, sans transaction ni verrou : le cas courant est « la
+  // conversation existe déjà », et la fiche match appelle cette fonction à
+  // chaque affichage.
+  const existant = await prisma.match.findUnique({
+    where: { id: matchId },
+    select: { conversationId: true },
+  });
+  if (!existant) return null;
+  if (existant.conversationId) return existant.conversationId;
+
+  return prisma.$transaction(async (tx) => {
+    const verrou = await tx.$queryRaw<
+      {
+        id: string;
+        terrainId: string;
+        organisateurId: string;
+        date: string;
+        conversationId: string | null;
+      }[]
+    >`
+      SELECT id, "terrainId", "organisateurId", date, "conversationId"
+      FROM "Match" WHERE id = ${matchId} FOR UPDATE
+    `;
+    const match = verrou[0];
+    if (!match) return null;
+    if (match.conversationId) return match.conversationId;
+    return creerConversationPourMatch(tx, match);
+  });
 }
 
 export type CreerMatchInput = {
@@ -95,12 +225,30 @@ export type CreerMatchInput = {
   date: string;
   heureDebut: string;
   heureFin: string;
+  format: FormatEquipe;
   joueursMax: number;
+  /** true : l'organisateur joue et occupe une place. false : il organise seulement. */
+  organisateurParticipe: boolean;
   description?: string;
 };
 
 export async function creerMatch(input: CreerMatchInput): Promise<{ id: string }> {
-  const match = await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
+    const terrain = await tx.terrain.findUnique({
+      where: { id: input.terrainId },
+      select: { nom: true },
+    });
+
+    // La discussion de groupe naît avec le match, dans la même transaction :
+    // aucun match ne doit exister sans son fil de discussion.
+    const conversation = await tx.conversation.create({
+      data: {
+        estGroupe: true,
+        nom: `Match · ${terrain?.nom ?? "Terrain"} · ${input.date}`,
+        participants: { create: [{ userId: input.organisateurId }] },
+      },
+    });
+
     const created = await tx.match.create({
       data: {
         terrainId: input.terrainId,
@@ -108,17 +256,26 @@ export async function creerMatch(input: CreerMatchInput): Promise<{ id: string }
         date: input.date,
         heureDebut: input.heureDebut,
         heureFin: input.heureFin,
+        format: input.format,
         joueursMax: input.joueursMax,
+        organisateurParticipe: input.organisateurParticipe,
         description: input.description,
+        conversationId: conversation.id,
       },
     });
-    await tx.matchParticipant.create({
-      data: { matchId: created.id, userId: input.organisateurId },
-    });
-    return created;
-  });
 
-  return { id: match.id };
+    // L'organisateur n'occupe une place que s'il a déclaré jouer. Sinon il
+    // organise sans compter dans l'effectif recherché — c'est tout ce qui
+    // distingue les deux cas, le comptage « joueurs trouvés » découle
+    // ensuite naturellement du nombre de MatchParticipant.
+    if (input.organisateurParticipe) {
+      await tx.matchParticipant.create({
+        data: { matchId: created.id, userId: input.organisateurId },
+      });
+    }
+
+    return { id: created.id };
+  });
 }
 
 export type RejoindreResultat =
