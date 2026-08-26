@@ -3,6 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { RAISONS_ANNULATION } from "@/lib/annulations/libelles";
+
+const champClasse =
+  "mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
 
 export function MatchActions({
   matchId,
@@ -19,8 +23,11 @@ export function MatchActions({
   const { status } = useSession();
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState("");
+  const [formulaireAnnulation, setFormulaireAnnulation] = useState(false);
+  const [raison, setRaison] = useState<string>(RAISONS_ANNULATION[0].valeur);
+  const [raisonAutre, setRaisonAutre] = useState("");
 
-  async function appeler(url: string) {
+  async function appeler(url: string, corps?: unknown) {
     if (status !== "authenticated") {
       router.push(`/connexion?callbackUrl=${encodeURIComponent(`/matchs/${matchId}`)}`);
       return;
@@ -28,18 +35,36 @@ export function MatchActions({
     setEnvoi(true);
     setErreur("");
     try {
-      const response = await fetch(url, { method: "POST" });
+      const response = await fetch(url, {
+        method: "POST",
+        ...(corps === undefined
+          ? {}
+          : {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(corps),
+            }),
+      });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         setErreur(typeof body?.error === "string" ? body.error : "Une erreur est survenue.");
         return;
       }
+      setFormulaireAnnulation(false);
       router.refresh();
     } catch {
       setErreur("Une erreur est survenue. Veuillez réessayer.");
     } finally {
       setEnvoi(false);
     }
+  }
+
+  function confirmerAnnulation() {
+    // Le motif est obligatoire côté serveur : on l'envoie toujours, et la
+    // précision libre uniquement quand le motif est « autre ».
+    void appeler(`/api/matchs/${matchId}/annuler`, {
+      raison,
+      ...(raison === "autre" ? { raisonAutre } : {}),
+    });
   }
 
   if (statut === "annule") {
@@ -73,10 +98,10 @@ export function MatchActions({
             {statut === "complet" ? "Match complet" : "Rejoindre le match"}
           </button>
         )}
-        {estOrganisateur && (
+        {estOrganisateur && !formulaireAnnulation && (
           <button
             type="button"
-            onClick={() => appeler(`/api/matchs/${matchId}/annuler`)}
+            onClick={() => setFormulaireAnnulation(true)}
             disabled={envoi}
             className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-anthracite disabled:opacity-50"
           >
@@ -84,6 +109,68 @@ export function MatchActions({
           </button>
         )}
       </div>
+
+      {estOrganisateur && formulaireAnnulation && (
+        <div className="rounded-lg border border-gray-200 p-3">
+          <label htmlFor="raison-annulation" className="block text-sm font-medium text-anthracite">
+            Motif de l&apos;annulation
+          </label>
+          <select
+            id="raison-annulation"
+            value={raison}
+            onChange={(e) => setRaison(e.target.value)}
+            className={champClasse}
+          >
+            {RAISONS_ANNULATION.map((option) => (
+              <option key={option.valeur} value={option.valeur}>
+                {option.libelle}
+              </option>
+            ))}
+          </select>
+
+          {raison === "autre" && (
+            <div className="mt-2">
+              <label htmlFor="raison-autre" className="block text-sm font-medium text-anthracite">
+                Précisez le motif
+              </label>
+              <input
+                id="raison-autre"
+                type="text"
+                value={raisonAutre}
+                onChange={(e) => setRaisonAutre(e.target.value)}
+                maxLength={200}
+                className={champClasse}
+              />
+            </div>
+          )}
+
+          <p className="mt-2 text-sm text-gray-600">
+            Les autres participants seront prévenus du motif.
+          </p>
+
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={confirmerAnnulation}
+              disabled={envoi}
+              className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              Confirmer l&apos;annulation
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFormulaireAnnulation(false);
+                setErreur("");
+              }}
+              disabled={envoi}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-anthracite disabled:opacity-50"
+            >
+              Revenir
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

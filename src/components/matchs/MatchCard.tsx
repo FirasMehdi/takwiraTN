@@ -1,9 +1,8 @@
 import Link from "next/link";
 import type { MatchResume } from "@/lib/matchs/queries";
+import { libelleFormat } from "@/lib/terrains/format";
 
 export function MatchCard({ match }: { match: MatchResume }) {
-  const placesRestantes = match.joueursMax - match.joueursInscrits;
-
   return (
     <Link
       href={`/matchs/${match.id}`}
@@ -20,7 +19,7 @@ export function MatchCard({ match }: { match: MatchResume }) {
         >
           {match.statut === "complet"
             ? "Complet"
-            : `${placesRestantes} place${placesRestantes > 1 ? "s" : ""}`}
+            : `${match.joueursManquants} place${match.joueursManquants > 1 ? "s" : ""}`}
         </span>
       </div>
       <p className="mt-1 text-sm text-gray-600">
@@ -28,7 +27,13 @@ export function MatchCard({ match }: { match: MatchResume }) {
       </p>
       <p className="mt-1 text-sm text-gray-600">
         {match.joueursInscrits} / {match.joueursMax} joueurs
+        {match.format ? ` · ${libelleFormat(match.format)}` : ""}
       </p>
+      {match.joueursManquants > 0 && (
+        <p className="mt-1 text-sm font-medium text-primary">
+          Il manque {match.joueursManquants} joueur{match.joueursManquants > 1 ? "s" : ""}
+        </p>
+      )}
     </Link>
   );
 }

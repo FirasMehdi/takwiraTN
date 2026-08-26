@@ -72,4 +72,59 @@ describe("MatchActions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rejoindre le match" }));
     await waitFor(() => expect(screen.getByText("Ce match est complet")).toBeInTheDocument());
   });
+
+  it("does not cancel immediately — it asks for a reason first", () => {
+    render(<MatchActions matchId="m1" statut="ouvert" estOrganisateur={true} estInscrit={true} />);
+    fireEvent.click(screen.getByRole("button", { name: "Annuler le match" }));
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Motif de l'annulation")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Confirmer l'annulation" })
+    ).toBeInTheDocument();
+  });
+
+  it("sends the chosen reason with the cancellation", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({ ok: true } as Response);
+    render(<MatchActions matchId="m1" statut="ouvert" estOrganisateur={true} estInscrit={true} />);
+    fireEvent.click(screen.getByRole("button", { name: "Annuler le match" }));
+    fireEvent.change(screen.getByLabelText("Motif de l'annulation"), {
+      target: { value: "pas_assez_joueurs" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmer l'annulation" }));
+
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
+    const [url, init] = vi.mocked(global.fetch).mock.calls[0];
+    expect(url).toBe("/api/matchs/m1/annuler");
+    expect(JSON.parse(String(init?.body))).toEqual({ raison: "pas_assez_joueurs" });
+  });
+
+  it("asks for a precision only when the reason is autre, and sends it", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({ ok: true } as Response);
+    render(<MatchActions matchId="m1" statut="ouvert" estOrganisateur={true} estInscrit={true} />);
+    fireEvent.click(screen.getByRole("button", { name: "Annuler le match" }));
+    expect(screen.queryByLabelText("Précisez le motif")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Motif de l'annulation"), {
+      target: { value: "autre" },
+    });
+    fireEvent.change(screen.getByLabelText("Précisez le motif"), {
+      target: { value: "Terrain inondé" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmer l'annulation" }));
+
+    await waitFor(() => expect(refreshMock).toHaveBeenCalled());
+    const [, init] = vi.mocked(global.fetch).mock.calls[0];
+    expect(JSON.parse(String(init?.body))).toEqual({
+      raison: "autre",
+      raisonAutre: "Terrain inondé",
+    });
+  });
+
+  it("closes the cancellation form without calling the API", () => {
+    render(<MatchActions matchId="m1" statut="ouvert" estOrganisateur={true} estInscrit={true} />);
+    fireEvent.click(screen.getByRole("button", { name: "Annuler le match" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revenir" }));
+    expect(screen.queryByLabelText("Motif de l'annulation")).not.toBeInTheDocument();
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
 });

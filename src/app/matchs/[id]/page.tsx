@@ -2,10 +2,12 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { findMatchById } from "@/lib/matchs/queries";
+import { findMatchById, assurerConversationMatch } from "@/lib/matchs/queries";
 import { findAmis } from "@/lib/amis/queries";
+import { libelleFormat } from "@/lib/terrains/format";
 import { MatchActions } from "@/components/matchs/MatchActions";
 import { InviterAmiButton } from "@/components/matchs/InviterAmiButton";
+import { DecisionReservationMatch } from "@/components/matchs/DecisionReservationMatch";
 
 export default async function MatchDetailPage({
   params,
@@ -15,6 +17,12 @@ export default async function MatchDetailPage({
   const { id } = await params;
   const match = await findMatchById(id);
   if (!match) notFound();
+
+  // Match créé avant la discussion de groupe automatique : on la crée à la
+  // première consultation de sa fiche, plutôt que par une migration de masse.
+  if (!match.conversationId) {
+    await assurerConversationMatch(match.id);
+  }
 
   const session = await getServerSession(authOptions);
   const estOrganisateur = session?.user?.id === match.organisateurId;
@@ -33,6 +41,11 @@ export default async function MatchDetailPage({
       .map((ami) => ({ id: ami.id, prenom: ami.prenom }));
   }
 
+  // La décision de réservation ne se pose qu'à l'organisateur, une fois le
+  // créneau passé, sur un match non annulé, et tant qu'il n'a pas tranché.
+  const decisionAPrendre =
+    estOrganisateur && match.estTermine && !match.decisionPrise && match.statut !== "annule";
+
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-gray-50 px-4 pb-6 pt-6">
       <Link href="/matchs" className="text-sm text-primary hover:underline">
@@ -44,13 +57,26 @@ export default async function MatchDetailPage({
         <p className="mt-1 text-sm text-gray-600">
           {match.terrainVille} · {match.date} · {match.heureDebut} — {match.heureFin}
         </p>
-        <p className="mt-1 text-sm text-gray-600">Organisé par {match.organisateurPrenom}</p>
+        <p className="mt-1 text-sm text-gray-600">
+          Organisé par {match.organisateurPrenom}
+          {match.format ? ` · ${libelleFormat(match.format)}` : ""}
+        </p>
 
         {match.description && <p className="mt-3 text-sm text-anthracite">{match.description}</p>}
 
         <p className="mt-3 text-sm font-medium text-anthracite">
           {match.joueursInscrits} / {match.joueursMax} joueurs
         </p>
+        {match.statut !== "annule" && match.joueursManquants > 0 && (
+          <p className="mt-1 text-sm font-medium text-primary">
+            Il manque {match.joueursManquants} joueur{match.joueursManquants > 1 ? "s" : ""}
+          </p>
+        )}
+        {!match.organisateurParticipe && (
+          <p className="mt-1 text-sm text-gray-600">
+            L&apos;organisateur ne joue pas : il n&apos;occupe aucune place.
+          </p>
+        )}
 
         <ul className="mt-2 flex flex-wrap gap-2">
           {match.participants.map((p) => (
@@ -61,6 +87,10 @@ export default async function MatchDetailPage({
         </ul>
 
         <div className="mt-4 flex flex-col gap-2">
+          {decisionAPrendre && <DecisionReservationMatch matchId={match.id} />}
+          {estOrganisateur && match.reservationId && (
+            <p className="text-sm font-medium text-primary">Créneau réservé.</p>
+          )}
           <MatchActions
             matchId={match.id}
             statut={match.statut}
