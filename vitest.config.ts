@@ -8,9 +8,18 @@ export default defineConfig({
     environment: "jsdom",
     fileParallelism: false,
     setupFiles: ["./tests/setup/vitest.setup.ts"],
-    // Git worktrees live under .claude/worktrees/ inside the repo; without
-    // this, every test file is discovered twice (once per checkout).
-    exclude: ["**/node_modules/**", "**/dist/**", "**/.next/**", "**/.claude/**"],
+    // Git worktrees live under .worktrees/ (and historically .claude/worktrees/)
+    // inside the repo; without this, every test file is discovered twice
+    // (once per checkout), and — worse — both copies run concurrently
+    // against the same shared test database, producing spurious collisions.
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.next/**",
+      "**/.claude/**",
+      "**/.worktrees/**",
+      "**/worktrees/**",
+    ],
     env: {
       NODE_ENV: "test",
       // La génération de créneaux suppose l'heure locale de Tunis (voir
