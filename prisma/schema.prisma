@@ -32,6 +32,7 @@ model User {
   messagesEnvoyes     Message[] @relation("MessageExpediteur")
   conversations       ConversationParticipant[]
   notifications       Notification[]
+  annulations         Annulation[]
 }
 
 model PlayerProfile {
@@ -164,14 +165,34 @@ model Match {
 
   /// Effectif total recherché, organisateur inclus (ex. 10 pour un 5v5).
   joueursMax Int
+  /// Nullable : les matchs créés avant ce champ n'en ont pas. Les nouveaux
+  /// matchs le renseignent toujours (sous-projet Match Search Rework).
+  format     FormatEquipe?
+  /// L'organisateur choisit à la création s'il joue lui-même ou se contente
+  /// d'organiser — ça change le calcul "joueurs trouvés / requis".
+  organisateurParticipe Boolean @default(true)
 
   description String?
 
   statut MatchStatut @default(ouvert)
 
+  /// Discussion de groupe créée automatiquement pour ce match — nullable
+  /// pour les matchs existants avant ce champ ; créée à la volée pour eux
+  /// au premier accès plutôt que rétro-migrée en masse.
+  conversationId String?      @unique
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  /// Réservation créée lors de la décision de réservation en fin de match.
+  reservationId String?      @unique
+  reservation   Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+
+  /// Rappel 24h avant le match déjà envoyé — évite les doublons du cron.
+  rappelEnvoye Boolean @default(false)
+
   createdAt DateTime @default(now())
 
   participants MatchParticipant[]
+  annulation   Annulation?
 
   @@index([date])
   @@index([terrainId])
@@ -212,6 +233,12 @@ model Reservation {
   createdAt  DateTime  @default(now())
   canceledAt DateTime?
 
+  /// Inverse de Match.reservationId — présent seulement si cette réservation
+  /// vient d'une décision de réservation en fin de match, pas d'une
+  /// réservation directe d'un créneau.
+  match      Match?
+  annulation Annulation?
+
   @@index([userId])
   @@index([terrainId, date])
 }
@@ -246,6 +273,7 @@ model Conversation {
 
   participants ConversationParticipant[]
   messages     Message[]
+  match        Match?
 }
 
 model ConversationParticipant {
@@ -287,4 +315,39 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([userId, lu])
+}
+
+enum RaisonAnnulation {
+  personnel
+  pas_assez_joueurs
+  conflit_horaire
+  terrain_indisponible
+  autre
+}
+
+/// Enregistrement unifié d'annulation, qu'elle porte sur un Match ou une
+/// Reservation — exactement une des deux cibles est renseignée (contrainte
+/// CHECK au niveau base, pas exprimable directement en Prisma). Sert de
+/// source unique pour les vues "annulations" de l'Admin et du propriétaire.
+model Annulation {
+  id String @id @default(cuid())
+
+  matchId String?
+  match   Match?  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  reservationId String?
+  reservation   Reservation? @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  raison      RaisonAnnulation
+  /// Renseigné seulement quand raison = autre.
+  raisonAutre String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([matchId])
+  @@unique([reservationId])
+  @@index([userId])
 }
