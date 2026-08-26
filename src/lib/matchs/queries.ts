@@ -289,9 +289,21 @@ export async function rejoindreMatch(
     // a validé, au lieu de lire un instantané périmé. Un index unique ne
     // peut pas exprimer une contrainte de comptage ("au plus N lignes liées
     // à ce match"), contrairement au cas de la réservation de créneaux —
-    // c'est pourquoi le mécanisme diffère ici.
-    const verrou = await tx.$queryRaw<{ id: string; statut: string; joueursMax: number }[]>`
-      SELECT id, statut, "joueursMax" FROM "Match" WHERE id = ${matchId} FOR UPDATE
+    // c'est pourquoi le mécanisme diffère ici. Le même verrou sérialise
+    // aussi la création paresseuse de la discussion de groupe plus bas.
+    const verrou = await tx.$queryRaw<
+      {
+        id: string;
+        terrainId: string;
+        organisateurId: string;
+        date: string;
+        statut: string;
+        joueursMax: number;
+        conversationId: string | null;
+      }[]
+    >`
+      SELECT id, "terrainId", "organisateurId", date, statut, "joueursMax", "conversationId"
+      FROM "Match" WHERE id = ${matchId} FOR UPDATE
     `;
     const match = verrou[0];
     if (!match || match.statut === "annule") {
@@ -309,6 +321,21 @@ export async function rejoindreMatch(
     }
 
     await tx.matchParticipant.create({ data: { matchId, userId } });
+
+    // Match legacy sans discussion (créé avant cette vague) : on la crée ici,
+    // sous le verrou déjà pris, plutôt que par une migration de masse. Comme
+    // l'inscription vient d'être écrite, le nouveau venu y est inclus.
+    const conversationId =
+      match.conversationId ?? (await creerConversationPourMatch(tx, match));
+
+    // Même transaction que l'inscription : rejoindre le match et rejoindre sa
+    // discussion réussissent ou échouent ensemble. upsert plutôt que create,
+    // parce que la création paresseuse ci-dessus a pu déjà inscrire ce joueur.
+    await tx.conversationParticipant.upsert({
+      where: { conversationId_userId: { conversationId, userId } },
+      create: { conversationId, userId },
+      update: {},
+    });
 
     if (inscrits + 1 >= match.joueursMax) {
       await tx.match.update({ where: { id: matchId }, data: { statut: "complet" } });
@@ -328,6 +355,20 @@ export async function quitterMatch(matchId: string, userId: string): Promise<Qui
     if (!participation) return { ok: false, raison: "introuvable" } as const;
 
     await tx.matchParticipant.delete({ where: { id: participation.id } });
+
+    const match = await tx.match.findUnique({
+      where: { id: matchId },
+      select: { organisateurId: true, conversationId: true },
+    });
+
+    // Quitter le match, c'est aussi quitter sa discussion — sauf pour
+    // l'organisateur, qui reste dans le fil qu'il anime même s'il libère sa
+    // place de joueur.
+    if (match?.conversationId && match.organisateurId !== userId) {
+      await tx.conversationParticipant.deleteMany({
+        where: { conversationId: match.conversationId, userId },
+      });
+    }
 
     // Un départ rouvre un match complet.
     await tx.match.updateMany({

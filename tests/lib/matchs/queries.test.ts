@@ -370,4 +370,112 @@ describe("matchs/queries", () => {
     expect(idA).toBe(idB);
     expect(await prisma.conversation.count({ where: { estGroupe: true } })).toBe(1);
   });
+
+  it("adds the joining player to the match conversation in the same transaction", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 10 });
+    const joueur = await creerUtilisateur("j@example.com");
+
+    expect(await rejoindreMatch(id, joueur.id)).toEqual({ ok: true });
+
+    const detail = await findMatchById(id);
+    const membres = await prisma.conversationParticipant.findMany({
+      where: { conversationId: detail!.conversationId! },
+      select: { userId: true },
+    });
+    expect(membres.map((m) => m.userId).sort()).toEqual([organisateur.id, joueur.id].sort());
+  });
+
+  it("creates the conversation on first join for a legacy match", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const legacy = await prisma.match.create({
+      data: {
+        terrainId: terrain.id,
+        organisateurId: organisateur.id,
+        date: "2026-09-07",
+        heureDebut: "18:00",
+        heureFin: "19:30",
+        joueursMax: 10,
+        participants: { create: [{ userId: organisateur.id }] },
+      },
+    });
+    const joueur = await creerUtilisateur("j@example.com");
+
+    expect(await rejoindreMatch(legacy.id, joueur.id)).toEqual({ ok: true });
+
+    const detail = await findMatchById(legacy.id);
+    expect(detail?.conversationId).toBeTruthy();
+    const membres = await prisma.conversationParticipant.findMany({
+      where: { conversationId: detail!.conversationId! },
+      select: { userId: true },
+    });
+    expect(membres.map((m) => m.userId).sort()).toEqual([organisateur.id, joueur.id].sort());
+  });
+
+  it("does not add anyone to the conversation when the join is refused", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 1 });
+    const joueur = await creerUtilisateur("j@example.com");
+
+    expect(await rejoindreMatch(id, joueur.id)).toEqual({ ok: false, raison: "complet" });
+
+    const detail = await findMatchById(id);
+    const membres = await prisma.conversationParticipant.findMany({
+      where: { conversationId: detail!.conversationId! },
+    });
+    expect(membres).toHaveLength(1);
+  });
+
+  it("keeps exactly one conversation membership when two players race for the last spot", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 2 });
+
+    const userA = await creerUtilisateur("a@example.com");
+    const userB = await creerUtilisateur("b@example.com");
+
+    const [resultatA, resultatB] = await Promise.all([
+      rejoindreMatch(id, userA.id),
+      rejoindreMatch(id, userB.id),
+    ]);
+
+    expect([resultatA, resultatB].filter((r) => r.ok)).toHaveLength(1);
+
+    const detail = await findMatchById(id);
+    const membres = await prisma.conversationParticipant.count({
+      where: { conversationId: detail!.conversationId! },
+    });
+    // Organisateur + le seul gagnant de la course.
+    expect(membres).toBe(2);
+    expect(detail?.joueursInscrits).toBe(2);
+  });
+
+  it("removes a leaving player from the conversation but keeps the organizer in it", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 10 });
+    const joueur = await creerUtilisateur("j@example.com");
+    await rejoindreMatch(id, joueur.id);
+
+    expect(await quitterMatch(id, joueur.id)).toEqual({ ok: true });
+
+    const detail = await findMatchById(id);
+    const apresDepart = await prisma.conversationParticipant.findMany({
+      where: { conversationId: detail!.conversationId! },
+      select: { userId: true },
+    });
+    expect(apresDepart.map((m) => m.userId)).toEqual([organisateur.id]);
+
+    // L'organisateur libère sa place de joueur : il reste dans la discussion.
+    expect(await quitterMatch(id, organisateur.id)).toEqual({ ok: true });
+    const apresOrganisateur = await prisma.conversationParticipant.findMany({
+      where: { conversationId: detail!.conversationId! },
+      select: { userId: true },
+    });
+    expect(apresOrganisateur.map((m) => m.userId)).toEqual([organisateur.id]);
+    expect((await findMatchById(id))?.joueursInscrits).toBe(0);
+  });
 });
