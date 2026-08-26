@@ -13,5 +13,6 @@ export const config = {
     "/joueurs/:path*",
     "/matchs/creer/:path*",
     "/amis/:path*",
+    "/proprietaire/:path*",
   ],
 };
