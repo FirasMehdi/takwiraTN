@@ -1,30 +1,71 @@
-import Link from "next/link";
+import { findStatsAccueil } from "@/lib/homepage/queries";
+import { HeroSection } from "@/components/homepage/HeroSection";
+import { StatsSection } from "@/components/homepage/StatsSection";
+import { AudienceSection } from "@/components/homepage/AudienceSection";
+import { HowItWorksSection } from "@/components/homepage/HowItWorksSection";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const stats = await findStatsAccueil();
+
   return (
-    <main className="flex flex-col items-center gap-8 bg-gray-50 px-4 py-14 text-center">
-      <div className="flex flex-col items-center gap-3">
-        <span className="rounded-full bg-accent px-3 py-1 text-xs font-bold text-anthracite">
-          ⚽ Nouveau à Tunis, Sfax, Sousse et Ariana
-        </span>
-        <h1 className="text-3xl font-bold text-anthracite">Takwria TN</h1>
-        <p className="max-w-xs text-gray-600">
-          Trouve ton terrain. Forme ton équipe. Joue ton match.
-        </p>
-      </div>
-      <div className="flex w-full max-w-xs flex-col gap-3">
-        <Link
-          href="/terrains"
-          className="rounded-lg bg-primary px-4 py-3 font-semibold text-white transition hover:bg-primary-dark"
-        >
-          Réserver un terrain
-        </Link>
-        <Link
-          href="/matchs"
-          className="rounded-lg border border-primary px-4 py-3 font-semibold text-primary transition hover:bg-primary/5"
-        >
-          Rejoindre un match
-        </Link>
+    <main className="min-h-[calc(100vh-4rem)] bg-gray-50">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6">
+        <HeroSection />
+
+        <StatsSection stats={stats} />
+
+        <AudienceSection
+          eyebrow="Pour les joueurs"
+          title="Trouvez votre prochain match en quelques clics"
+          description="Parcourez les terrains disponibles près de chez vous, réservez un créneau, ou rejoignez un match déjà organisé pour compléter une équipe."
+          features={[
+            {
+              titre: "Cherchez un terrain",
+              description:
+                "Filtrez par ville, format et prix, et consultez les créneaux libres en temps réel.",
+            },
+            {
+              titre: "Rejoignez un match",
+              description:
+                "Trouvez des matchs ouverts près de chez vous et inscrivez-vous en un instant.",
+            },
+            {
+              titre: "Formez votre équipe",
+              description:
+                "Ajoutez des coéquipiers, discutez en groupe et organisez vos parties.",
+            },
+          ]}
+          ctaLabel="Rejoindre en tant que joueur"
+          ctaHref="/inscription"
+          variant="joueur"
+        />
+
+        <AudienceSection
+          eyebrow="Pour les propriétaires"
+          title="Remplissez votre terrain, pas votre agenda papier"
+          description="Publiez votre terrain, définissez vos horaires et vos tarifs, et laissez les joueurs réserver directement en ligne."
+          features={[
+            {
+              titre: "Publiez votre terrain",
+              description:
+                "Ajoutez photos, équipements, formats proposés et tarifs en quelques minutes.",
+            },
+            {
+              titre: "Gérez vos réservations",
+              description:
+                "Toutes vos réservations centralisées au même endroit, sans double réservation.",
+            },
+            {
+              titre: "Touchez de nouveaux joueurs",
+              description: "Votre terrain visible par toute la communauté Takwria TN.",
+            },
+          ]}
+          ctaLabel="Inscrire mon terrain"
+          ctaHref="/inscription?type=proprietaire"
+          variant="proprietaire"
+        />
+
+        <HowItWorksSection />
       </div>
     </main>
   );
