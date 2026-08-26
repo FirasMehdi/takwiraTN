@@ -338,4 +338,36 @@ describe("matchs/queries", () => {
   it("returns null from assurerConversationMatch for an unknown match", async () => {
     expect(await assurerConversationMatch("inconnu")).toBeNull();
   });
+
+  it("creates exactly one conversation when two callers race on the same legacy match", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+
+    // Match « legacy », comme dans le test précédent. Sans le verrou
+    // SELECT … FOR UPDATE pris par assurerConversationMatch, les deux appels
+    // liraient tous les deux conversationId = null, créeraient chacun leur
+    // propre Conversation, et seul l'un des deux gagnerait la contrainte
+    // d'unicité sur Match.conversationId — l'autre conversation resterait
+    // orpheline, jamais liée à aucun match.
+    const legacy = await prisma.match.create({
+      data: {
+        terrainId: terrain.id,
+        organisateurId: organisateur.id,
+        date: "2026-09-07",
+        heureDebut: "18:00",
+        heureFin: "19:30",
+        joueursMax: 10,
+        participants: { create: [{ userId: organisateur.id }] },
+      },
+    });
+
+    const [idA, idB] = await Promise.all([
+      assurerConversationMatch(legacy.id),
+      assurerConversationMatch(legacy.id),
+    ]);
+
+    expect(idA).toBeTruthy();
+    expect(idA).toBe(idB);
+    expect(await prisma.conversation.count({ where: { estGroupe: true } })).toBe(1);
+  });
 });

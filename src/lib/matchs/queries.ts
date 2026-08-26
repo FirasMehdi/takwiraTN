@@ -27,7 +27,7 @@ export type MatchDetail = MatchResume & {
   organisateurPrenom: string;
   conversationId: string | null;
   reservationId: string | null;
-  /** Le créneau est passé : date + heureFin est antérieur à « maintenant ». */
+  /** Le créneau est passé : date + heureFin est antérieur ou égal à « maintenant ». */
   estTermine: boolean;
   /** L'organisateur a déjà tranché la question de la réservation de fin de match. */
   decisionPrise: boolean;
@@ -148,6 +148,10 @@ type MatchPourConversation = {
  * (SELECT … FOR UPDATE) : sans ce verrou, deux appels concurrents créeraient
  * deux conversations pour le même match, et l'unicité de Match.conversationId
  * n'en attraperait qu'une seule des deux (l'autre resterait orpheline).
+ * Exception : `creerMatch` l'appelle juste après avoir inséré la ligne Match
+ * dans cette même transaction — cette ligne n'est encore visible d'aucune
+ * autre transaction, donc aucun appel concurrent ne peut la disputer sans
+ * verrou explicite.
  */
 async function creerConversationPourMatch(
   tx: Prisma.TransactionClient,
@@ -234,21 +238,6 @@ export type CreerMatchInput = {
 
 export async function creerMatch(input: CreerMatchInput): Promise<{ id: string }> {
   return prisma.$transaction(async (tx) => {
-    const terrain = await tx.terrain.findUnique({
-      where: { id: input.terrainId },
-      select: { nom: true },
-    });
-
-    // La discussion de groupe naît avec le match, dans la même transaction :
-    // aucun match ne doit exister sans son fil de discussion.
-    const conversation = await tx.conversation.create({
-      data: {
-        estGroupe: true,
-        nom: `Match · ${terrain?.nom ?? "Terrain"} · ${input.date}`,
-        participants: { create: [{ userId: input.organisateurId }] },
-      },
-    });
-
     const created = await tx.match.create({
       data: {
         terrainId: input.terrainId,
@@ -260,7 +249,6 @@ export async function creerMatch(input: CreerMatchInput): Promise<{ id: string }
         joueursMax: input.joueursMax,
         organisateurParticipe: input.organisateurParticipe,
         description: input.description,
-        conversationId: conversation.id,
       },
     });
 
@@ -273,6 +261,14 @@ export async function creerMatch(input: CreerMatchInput): Promise<{ id: string }
         data: { matchId: created.id, userId: input.organisateurId },
       });
     }
+
+    // La discussion de groupe naît avec le match, dans la même transaction :
+    // aucun match ne doit exister sans son fil de discussion. On réutilise
+    // creerConversationPourMatch plutôt que de dupliquer ici sa logique de
+    // nommage et d'inscription des membres — elle relit d'elle-même le
+    // MatchParticipant qu'on vient de créer (zéro ou un, selon
+    // organisateurParticipe) et lie la conversation au match.
+    await creerConversationPourMatch(tx, created);
 
     return { id: created.id };
   });
