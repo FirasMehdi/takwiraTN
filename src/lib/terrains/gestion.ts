@@ -149,7 +149,7 @@ export async function creerTerrain(
   return { id: terrain.id };
 }
 
-async function verifierProprietaire(
+export async function verifierProprietaire(
   terrainId: string,
   ownerId: string
 ): Promise<{ ok: true } | { ok: false; raison: "introuvable" | "non_autorise" }> {
@@ -226,5 +226,83 @@ export async function supprimerTerrain(
   }
 
   await prisma.terrain.delete({ where: { id: terrainId } });
+  return { ok: true };
+}
+
+export type AjouterFormatResultat =
+  | { ok: true; id: string }
+  | { ok: false; raison: "introuvable" | "non_autorise" | "format_existe" };
+
+export async function ajouterFormat(
+  terrainId: string,
+  ownerId: string,
+  input: FormatInput
+): Promise<AjouterFormatResultat> {
+  const verif = await verifierProprietaire(terrainId, ownerId);
+  if (!verif.ok) return verif;
+
+  const existant = await prisma.terrainFormatOffre.findUnique({
+    where: { terrainId_format: { terrainId, format: input.format } },
+  });
+  if (existant) return { ok: false, raison: "format_existe" };
+
+  const created = await prisma.terrainFormatOffre.create({
+    data: {
+      terrainId,
+      format: input.format,
+      capacite: input.capacite,
+      prixParCreneau: input.prixParCreneau,
+    },
+  });
+  return { ok: true, id: created.id };
+}
+
+export type ModifierFormatResultat =
+  | { ok: true }
+  | { ok: false; raison: "introuvable" | "non_autorise" };
+
+export async function modifierFormat(
+  terrainId: string,
+  ownerId: string,
+  formatId: string,
+  input: { capacite: number; prixParCreneau: number }
+): Promise<ModifierFormatResultat> {
+  const verif = await verifierProprietaire(terrainId, ownerId);
+  if (!verif.ok) return verif;
+
+  const format = await prisma.terrainFormatOffre.findFirst({
+    where: { id: formatId, terrainId },
+  });
+  if (!format) return { ok: false, raison: "introuvable" };
+
+  await prisma.terrainFormatOffre.update({
+    where: { id: formatId },
+    data: { capacite: input.capacite, prixParCreneau: input.prixParCreneau },
+  });
+  return { ok: true };
+}
+
+export type SupprimerFormatResultat =
+  | { ok: true }
+  | { ok: false; raison: "introuvable" | "non_autorise" | "dernier_format" };
+
+/** Un terrain doit toujours garder au moins un format — le dernier ne peut pas être retiré. */
+export async function supprimerFormat(
+  terrainId: string,
+  ownerId: string,
+  formatId: string
+): Promise<SupprimerFormatResultat> {
+  const verif = await verifierProprietaire(terrainId, ownerId);
+  if (!verif.ok) return verif;
+
+  const format = await prisma.terrainFormatOffre.findFirst({
+    where: { id: formatId, terrainId },
+  });
+  if (!format) return { ok: false, raison: "introuvable" };
+
+  const total = await prisma.terrainFormatOffre.count({ where: { terrainId } });
+  if (total <= 1) return { ok: false, raison: "dernier_format" };
+
+  await prisma.terrainFormatOffre.delete({ where: { id: formatId } });
   return { ok: true };
 }
