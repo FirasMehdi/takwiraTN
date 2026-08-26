@@ -161,3 +161,70 @@ async function verifierProprietaire(
   if (terrain.ownerId !== ownerId) return { ok: false, raison: "non_autorise" };
   return { ok: true };
 }
+
+export type ModifierTerrainResultat =
+  | { ok: true }
+  | { ok: false; raison: "introuvable" | "non_autorise" };
+
+export async function modifierTerrain(
+  terrainId: string,
+  ownerId: string,
+  input: TerrainBaseInput
+): Promise<ModifierTerrainResultat> {
+  const verif = await verifierProprietaire(terrainId, ownerId);
+  if (!verif.ok) return verif;
+
+  await prisma.terrain.update({
+    where: { id: terrainId },
+    data: {
+      nom: input.nom,
+      description: input.description ?? null,
+      adresse: input.adresse,
+      ville: input.ville,
+      latitude: input.latitude ?? null,
+      longitude: input.longitude ?? null,
+      type: input.type,
+      dureeCreneauMinutes: input.dureeCreneauMinutes ?? 90,
+      equipements: input.equipements ?? [],
+    },
+  });
+  return { ok: true };
+}
+
+export type SupprimerTerrainResultat =
+  | { ok: true }
+  | { ok: false; raison: "introuvable" | "non_autorise" | "reservations_actives" };
+
+/**
+ * Supprime un terrain. Refuse si des réservations confirmées ou des matchs
+ * ouverts/complets à venir y sont encore attachés : Reservation.terrainId et
+ * Match.terrainId sont `onDelete: Cascade` dans le schéma, donc supprimer le
+ * terrain les supprimerait silencieusement avec lui — un vrai propriétaire
+ * ne doit pas pouvoir effacer des réservations de joueurs de cette façon.
+ */
+export async function supprimerTerrain(
+  terrainId: string,
+  ownerId: string,
+  maintenant: Date = new Date()
+): Promise<SupprimerTerrainResultat> {
+  const verif = await verifierProprietaire(terrainId, ownerId);
+  if (!verif.ok) return verif;
+
+  const dateStr = formatDateLocale(maintenant);
+  const [reservationActive, matchActif] = await Promise.all([
+    prisma.reservation.findFirst({
+      where: { terrainId, statut: "confirmee", date: { gte: dateStr } },
+      select: { id: true },
+    }),
+    prisma.match.findFirst({
+      where: { terrainId, statut: { in: ["ouvert", "complet"] }, date: { gte: dateStr } },
+      select: { id: true },
+    }),
+  ]);
+  if (reservationActive || matchActif) {
+    return { ok: false, raison: "reservations_actives" };
+  }
+
+  await prisma.terrain.delete({ where: { id: terrainId } });
+  return { ok: true };
+}
