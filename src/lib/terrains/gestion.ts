@@ -306,3 +306,30 @@ export async function supprimerFormat(
   await prisma.terrainFormatOffre.delete({ where: { id: formatId } });
   return { ok: true };
 }
+
+export type ModifierHorairesResultat =
+  | { ok: true }
+  | { ok: false; raison: "introuvable" | "non_autorise" };
+
+/** Remplace intégralement les horaires du terrain par le nouvel ensemble fourni. */
+export async function modifierHoraires(
+  terrainId: string,
+  ownerId: string,
+  horaires: HoraireInput[]
+): Promise<ModifierHorairesResultat> {
+  const verif = await verifierProprietaire(terrainId, ownerId);
+  if (!verif.ok) return verif;
+
+  await prisma.$transaction([
+    prisma.terrainHoraire.deleteMany({ where: { terrainId } }),
+    prisma.terrainHoraire.createMany({
+      data: horaires.map((h) => ({
+        terrainId,
+        jourSemaine: h.jourSemaine,
+        ouvre: h.ouvre,
+        ferme: h.ferme,
+      })),
+    }),
+  ]);
+  return { ok: true };
+}

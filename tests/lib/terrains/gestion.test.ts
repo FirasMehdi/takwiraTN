@@ -11,6 +11,7 @@ import {
   ajouterFormat,
   modifierFormat,
   supprimerFormat,
+  modifierHoraires,
 } from "@/lib/terrains/gestion";
 
 async function creerProprietaire(email = "owner@example.com") {
@@ -266,6 +267,38 @@ describe("gestion des terrains propriétaire", () => {
       expect(resultat).toEqual({ ok: false, raison: "dernier_format" });
       const count = await prisma.terrainFormatOffre.count({ where: { terrainId: id } });
       expect(count).toBe(1);
+    });
+  });
+
+  describe("modifierHoraires", () => {
+    it("replaces the terrain's horaires with the new set", async () => {
+      const owner = await creerProprietaire();
+      const { id } = await creerTerrain(owner.id, { ...inputBase, formats: [formatValide], horaires: [horaireValide] });
+
+      const resultat = await modifierHoraires(id, owner.id, [
+        { jourSemaine: 0, ouvre: "09:00", ferme: "12:00" },
+        { jourSemaine: 0, ouvre: "16:00", ferme: "20:00" },
+      ]);
+      expect(resultat).toEqual({ ok: true });
+
+      const horaires = await prisma.terrainHoraire.findMany({ where: { terrainId: id } });
+      expect(horaires).toHaveLength(2);
+      expect(horaires.every((h) => h.jourSemaine === 0)).toBe(true);
+    });
+
+    it("refuses to modify horaires for another owner's terrain", async () => {
+      const owner = await creerProprietaire("a@example.com");
+      const other = await creerProprietaire("b@example.com");
+      const { id } = await creerTerrain(owner.id, { ...inputBase, formats: [formatValide], horaires: [horaireValide] });
+
+      const resultat = await modifierHoraires(id, other.id, [horaireValide]);
+      expect(resultat).toEqual({ ok: false, raison: "non_autorise" });
+    });
+
+    it("returns introuvable for a non-existent terrain", async () => {
+      const owner = await creerProprietaire();
+      const resultat = await modifierHoraires("inexistant", owner.id, [horaireValide]);
+      expect(resultat).toEqual({ ok: false, raison: "introuvable" });
     });
   });
 });
