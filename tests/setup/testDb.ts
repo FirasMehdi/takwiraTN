@@ -11,6 +11,9 @@ export async function resetDb() {
   await prisma.conversation.deleteMany();
   await prisma.amitie.deleteMany();
   await prisma.matchParticipant.deleteMany();
+  // Annulation référence à la fois Match et Reservation : elle doit partir
+  // avant les deux, sinon la suppression des cibles bute sur la clé étrangère.
+  await prisma.annulation.deleteMany();
   await prisma.match.deleteMany();
   await prisma.reservation.deleteMany();
   await prisma.passwordResetToken.deleteMany();

@@ -186,6 +186,13 @@ model Match {
   reservationId String?      @unique
   reservation   Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
 
+  /// Date à laquelle l'organisateur a tranché la question de la réservation de
+  /// fin de match — qu'il ait réservé (reservationId renseigné) ou refusé
+  /// explicitement (reservationId toujours NULL). NULL = décision en attente.
+  /// Sans ce champ, un refus ne serait pas mémorisable et l'invite
+  /// « Réserver ce créneau ? » réapparaîtrait indéfiniment.
+  decisionReservationAt DateTime?
+
   /// Rappel 24h avant le match déjà envoyé — évite les doublons du cron.
   rappelEnvoye Boolean @default(false)
 

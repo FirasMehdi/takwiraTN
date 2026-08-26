@@ -216,4 +216,27 @@ describe("matchs/queries", () => {
     const resultats = await findMatchs({});
     expect(resultats).toHaveLength(0);
   });
+
+  it("stores a booking decision timestamp and resets Annulation rows between tests", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const match = await prisma.match.create({
+      data: {
+        terrainId: terrain.id,
+        organisateurId: organisateur.id,
+        date: "2020-01-01",
+        heureDebut: "18:00",
+        heureFin: "19:30",
+        joueursMax: 10,
+      },
+    });
+
+    expect(match.decisionReservationAt).toBeNull();
+
+    await prisma.annulation.create({
+      data: { matchId: match.id, userId: organisateur.id, raison: "personnel" },
+    });
+    await resetDb();
+    expect(await prisma.annulation.count()).toBe(0);
+  });
 });
