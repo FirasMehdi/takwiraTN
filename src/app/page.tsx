@@ -4,6 +4,8 @@ import { StatsSection } from "@/components/homepage/StatsSection";
 import { AudienceSection } from "@/components/homepage/AudienceSection";
 import { HowItWorksSection } from "@/components/homepage/HowItWorksSection";
 
+export const revalidate = 300;
+
 export default async function HomePage() {
   const stats = await findStatsAccueil();
 

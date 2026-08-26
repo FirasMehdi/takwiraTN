@@ -75,4 +75,32 @@ describe("AudienceSection", () => {
     );
     expect(screen.getByRole("heading", { name: "Titre propriétaire" })).toBeInTheDocument();
   });
+
+  it("applies the anthracite card styling only for the proprietaire variant", () => {
+    const { container, rerender } = render(
+      <AudienceSection
+        eyebrow="Pour les joueurs"
+        title="Titre joueur"
+        description="Description."
+        features={features}
+        ctaLabel="CTA joueur"
+        ctaHref="/inscription"
+        variant="joueur"
+      />
+    );
+    expect(container.querySelector("section")).not.toHaveClass("bg-anthracite");
+
+    rerender(
+      <AudienceSection
+        eyebrow="Pour les propriétaires"
+        title="Titre propriétaire"
+        description="Description."
+        features={features}
+        ctaLabel="CTA propriétaire"
+        ctaHref="/inscription?type=proprietaire"
+        variant="proprietaire"
+      />
+    );
+    expect(container.querySelector("section")).toHaveClass("bg-anthracite");
+  });
 });
