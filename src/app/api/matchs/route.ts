@@ -22,9 +22,20 @@ export async function POST(request: Request) {
 
   const terrain = await prisma.terrain.findFirst({
     where: { id: parsed.data.terrainId, statut: "actif" },
+    include: { formats: { select: { format: true } } },
   });
   if (!terrain) {
     return NextResponse.json({ error: { terrainId: ["Terrain introuvable"] } }, { status: 404 });
+  }
+
+  // Le format demandé doit être un de ceux que ce terrain propose vraiment :
+  // le formulaire ne montre que ceux-là, mais rien n'empêche d'appeler l'API
+  // directement.
+  if (!terrain.formats.some((offre) => offre.format === parsed.data.format)) {
+    return NextResponse.json(
+      { error: { format: ["Ce terrain ne propose pas ce format"] } },
+      { status: 400 }
+    );
   }
 
   const match = await creerMatch({
