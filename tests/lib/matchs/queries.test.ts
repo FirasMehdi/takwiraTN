@@ -10,6 +10,7 @@ import {
   findMatchs,
   findMatchById,
   assurerConversationMatch,
+  deciderReservationMatch,
 } from "@/lib/matchs/queries";
 
 async function creerTerrain() {
@@ -599,5 +600,153 @@ describe("matchs/queries", () => {
     const notifs = await prisma.notification.findMany({ where: { userId: joueur.id } });
     expect(notifs).toHaveLength(1);
     expect(notifs[0].contenu).toContain("Terrain inondé");
+  });
+
+  it("refuses a booking decision before the match is over", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, {
+      date: "2026-09-07",
+      heureDebut: "18:00",
+      heureFin: "19:30",
+    });
+
+    expect(
+      await deciderReservationMatch(id, organisateur.id, true, new Date(2026, 8, 7, 19, 29))
+    ).toEqual({ ok: false, raison: "pas_termine" });
+    expect(await prisma.reservation.count()).toBe(0);
+  });
+
+  it("refuses a booking decision from anyone but the organizer", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const autre = await creerUtilisateur("autre@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id);
+
+    expect(
+      await deciderReservationMatch(id, autre.id, true, new Date(2026, 8, 8, 12, 0))
+    ).toEqual({ ok: false, raison: "non_autorise" });
+  });
+
+  it("refuses a booking decision on a cancelled match", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id);
+    await annulerMatch({ matchId: id, userId: organisateur.id, raison: "personnel" });
+
+    expect(
+      await deciderReservationMatch(id, organisateur.id, true, new Date(2026, 8, 8, 12, 0))
+    ).toEqual({ ok: false, raison: "annule" });
+  });
+
+  it("creates a real reservation for the terrain slot and links it to the match", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, {
+      date: "2026-09-07",
+      heureDebut: "18:00",
+      heureFin: "19:30",
+    });
+
+    const resultat = await deciderReservationMatch(
+      id,
+      organisateur.id,
+      true,
+      new Date(2026, 8, 7, 20, 0)
+    );
+    expect(resultat.ok).toBe(true);
+
+    const match = await prisma.match.findUnique({ where: { id } });
+    expect(match?.reservationId).toBeTruthy();
+    expect(match?.decisionReservationAt).not.toBeNull();
+
+    const reservation = await prisma.reservation.findUnique({
+      where: { id: match!.reservationId! },
+    });
+    expect(reservation).toMatchObject({
+      terrainId: terrain.id,
+      userId: organisateur.id,
+      date: "2026-09-07",
+      heureDebut: "18:00",
+      heureFin: "19:30",
+      statut: "confirmee",
+    });
+
+    const detail = await findMatchById(id, new Date(2026, 8, 7, 20, 0));
+    expect(detail?.decisionPrise).toBe(true);
+    expect(detail?.reservationId).toBe(match!.reservationId);
+  });
+
+  it("records an explicit decline without creating a reservation, and stops asking", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id);
+
+    expect(
+      await deciderReservationMatch(id, organisateur.id, false, new Date(2026, 8, 7, 20, 0))
+    ).toEqual({ ok: true, reservationId: null });
+
+    expect(await prisma.reservation.count()).toBe(0);
+    const detail = await findMatchById(id, new Date(2026, 8, 7, 20, 0));
+    expect(detail?.decisionPrise).toBe(true);
+    expect(detail?.reservationId).toBeNull();
+
+    expect(
+      await deciderReservationMatch(id, organisateur.id, true, new Date(2026, 8, 7, 20, 5))
+    ).toEqual({ ok: false, raison: "deja_decide" });
+    expect(await prisma.reservation.count()).toBe(0);
+  });
+
+  it("refuses a second decision after a booking", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id);
+    await deciderReservationMatch(id, organisateur.id, true, new Date(2026, 8, 7, 20, 0));
+
+    expect(
+      await deciderReservationMatch(id, organisateur.id, false, new Date(2026, 8, 7, 20, 5))
+    ).toEqual({ ok: false, raison: "deja_decide" });
+    expect(await prisma.reservation.count()).toBe(1);
+  });
+
+  it("reports a conflict and leaves the decision open when the slot is already booked", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const autre = await creerUtilisateur("autre@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, {
+      date: "2026-09-07",
+      heureDebut: "18:00",
+      heureFin: "19:30",
+    });
+
+    await prisma.reservation.create({
+      data: {
+        terrainId: terrain.id,
+        userId: autre.id,
+        date: "2026-09-07",
+        heureDebut: "18:00",
+        heureFin: "19:30",
+      },
+    });
+
+    expect(
+      await deciderReservationMatch(id, organisateur.id, true, new Date(2026, 8, 7, 20, 0))
+    ).toEqual({ ok: false, raison: "conflit" });
+
+    const match = await prisma.match.findUnique({ where: { id } });
+    expect(match?.reservationId).toBeNull();
+    // La décision reste ouverte : l'organisateur doit pouvoir refuser ensuite.
+    expect(match?.decisionReservationAt).toBeNull();
+    expect(await prisma.reservation.count()).toBe(1);
+
+    expect(
+      await deciderReservationMatch(id, organisateur.id, false, new Date(2026, 8, 7, 20, 1))
+    ).toEqual({ ok: true, reservationId: null });
+  });
+
+  it("deciderReservationMatch returns introuvable for an unknown match", async () => {
+    expect(
+      await deciderReservationMatch("inconnu", "u1", true, new Date(2026, 8, 7, 20, 0))
+    ).toEqual({ ok: false, raison: "introuvable" });
   });
 });

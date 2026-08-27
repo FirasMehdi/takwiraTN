@@ -45,11 +45,23 @@ export type CreerReservationResultat =
   | { ok: true; id: string }
   | { ok: false; raison: "conflit" };
 
+/**
+ * Le second paramètre permet d'écrire la réservation dans la transaction de
+ * l'appelant (décision de réservation en fin de match, cf.
+ * src/lib/matchs/queries.ts) plutôt que dans une transaction implicite à
+ * elle seule. Par défaut, c'est le client global — tous les appels existants
+ * sont inchangés.
+ *
+ * Attention côté appelant : en cas de conflit, Postgres a déjà avorté la
+ * transaction englobante ; il faut la faire échouer (throw) et non continuer
+ * à y écrire.
+ */
 export async function creerReservation(
-  input: CreerReservationInput
+  input: CreerReservationInput,
+  client: Prisma.TransactionClient = prisma
 ): Promise<CreerReservationResultat> {
   try {
-    const reservation = await prisma.reservation.create({ data: input });
+    const reservation = await client.reservation.create({ data: input });
     return { ok: true, id: reservation.id };
   } catch (error) {
     // P2002 = violation de contrainte d'unicité. Le seul index unique sur

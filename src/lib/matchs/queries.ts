@@ -2,6 +2,7 @@ import type { FormatEquipe, Prisma, RaisonAnnulation } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { creerNotification } from "@/lib/notifications/queries";
 import { libelleRaisonAnnulation } from "@/lib/annulations/libelles";
+import { creerReservation } from "@/lib/reservations/queries";
 
 export type MatchResume = {
   id: string;
@@ -475,4 +476,119 @@ export async function annulerMatch(input: AnnulerMatchInput): Promise<AnnulerMat
   }
 
   return { ok: true };
+}
+
+/**
+ * Signal interne : la création de la réservation a buté sur l'index unique
+ * partiel « un seul créneau confirmé par terrain/date/heure ». Un conflit
+ * doit remonter par une exception, pas par un simple retour : à ce moment-là
+ * Postgres a déjà avorté la transaction en cours, et toute écriture suivante
+ * dans cette même transaction échouerait de toute façon.
+ */
+class ConflitCreneauError extends Error {
+  constructor() {
+    super("conflit_creneau");
+    this.name = "ConflitCreneauError";
+  }
+}
+
+export type DecisionReservationResultat =
+  | { ok: true; reservationId: string | null }
+  | {
+      ok: false;
+      raison:
+        | "introuvable"
+        | "non_autorise"
+        | "annule"
+        | "pas_termine"
+        | "deja_decide"
+        | "conflit";
+    };
+
+/**
+ * Décision de réservation de fin de match : une fois le créneau passé,
+ * l'organisateur — et lui seul — réserve pour de bon (une vraie Reservation
+ * est créée pour son compte, sur le créneau du match) ou refuse.
+ *
+ * Dans les deux cas, decisionReservationAt est renseigné : c'est ce qui
+ * empêche l'invite « Réserver ce créneau ? » de revenir indéfiniment après
+ * un refus. Un conflit de créneau ne compte pas comme une décision — la
+ * question reste posée.
+ */
+export async function deciderReservationMatch(
+  matchId: string,
+  userId: string,
+  reserver: boolean,
+  maintenant: Date = new Date()
+): Promise<DecisionReservationResultat> {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      // Même verrou que partout ailleurs dans ce module : sérialise deux
+      // décisions simultanées, pour qu'une seule réservation soit créée.
+      const verrou = await tx.$queryRaw<
+        {
+          id: string;
+          terrainId: string;
+          organisateurId: string;
+          statut: string;
+          date: string;
+          heureDebut: string;
+          heureFin: string;
+          reservationId: string | null;
+          decisionReservationAt: Date | null;
+        }[]
+      >`
+        SELECT id, "terrainId", "organisateurId", statut, date, "heureDebut", "heureFin",
+               "reservationId", "decisionReservationAt"
+        FROM "Match" WHERE id = ${matchId} FOR UPDATE
+      `;
+      const match = verrou[0];
+      if (!match) return { ok: false, raison: "introuvable" } as const;
+      if (match.organisateurId !== userId) {
+        return { ok: false, raison: "non_autorise" } as const;
+      }
+      if (match.statut === "annule") return { ok: false, raison: "annule" } as const;
+      if (versDateLocale(match.date, match.heureFin).getTime() > maintenant.getTime()) {
+        return { ok: false, raison: "pas_termine" } as const;
+      }
+      if (match.reservationId !== null || match.decisionReservationAt !== null) {
+        return { ok: false, raison: "deja_decide" } as const;
+      }
+
+      if (!reserver) {
+        await tx.match.update({
+          where: { id: matchId },
+          data: { decisionReservationAt: maintenant },
+        });
+        return { ok: true, reservationId: null } as const;
+      }
+
+      // Réutilise la logique de réservation existante — c'est elle qui porte
+      // la protection contre la double réservation d'un créneau (index unique
+      // partiel), inutile de la réécrire ici.
+      const reservation = await creerReservation(
+        {
+          terrainId: match.terrainId,
+          userId: match.organisateurId,
+          date: match.date,
+          heureDebut: match.heureDebut,
+          heureFin: match.heureFin,
+        },
+        tx
+      );
+      if (!reservation.ok) throw new ConflitCreneauError();
+
+      await tx.match.update({
+        where: { id: matchId },
+        data: { reservationId: reservation.id, decisionReservationAt: maintenant },
+      });
+
+      return { ok: true, reservationId: reservation.id } as const;
+    });
+  } catch (err) {
+    if (err instanceof ConflitCreneauError) {
+      return { ok: false, raison: "conflit" };
+    }
+    throw err;
+  }
 }
