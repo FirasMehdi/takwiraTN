@@ -749,4 +749,54 @@ describe("matchs/queries", () => {
       await deciderReservationMatch("inconnu", "u1", true, new Date(2026, 8, 7, 20, 0))
     ).toEqual({ ok: false, raison: "introuvable" });
   });
+
+  it("allows exactly one of two simultaneous booking decisions to create a reservation", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, {
+      date: "2026-09-07",
+      heureDebut: "18:00",
+      heureFin: "19:30",
+    });
+    const maintenant = new Date(2026, 8, 7, 20, 0);
+
+    // Sans le verrou SELECT … FOR UPDATE, les deux appels liraient tous les
+    // deux decisionReservationAt = null, passeraient tous les deux le garde
+    // "deja_decide", et créeraient chacun leur propre Reservation pour un
+    // seul et même match.
+    const [resultatA, resultatB] = await Promise.all([
+      deciderReservationMatch(id, organisateur.id, true, maintenant),
+      deciderReservationMatch(id, organisateur.id, true, maintenant),
+    ]);
+
+    const succes = [resultatA, resultatB].filter((r) => r.ok);
+    const echecs = [resultatA, resultatB].filter((r) => !r.ok);
+    expect(succes).toHaveLength(1);
+    expect(echecs).toEqual([{ ok: false, raison: "deja_decide" }]);
+    expect(await prisma.reservation.count()).toBe(1);
+
+    const gagnant = succes[0] as { ok: true; reservationId: string | null };
+    expect(gagnant.reservationId).toBeTruthy();
+
+    const match = await prisma.match.findUnique({ where: { id } });
+    expect(match?.reservationId).toBe(gagnant.reservationId);
+  });
+
+  it("treats the exact end instant of the slot as already over, consistently with estTermine", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, {
+      date: "2026-09-07",
+      heureDebut: "18:00",
+      heureFin: "19:30",
+    });
+    // Exactement l'instant de fin du créneau : ni avant, ni après.
+    const finExacte = new Date(2026, 8, 7, 19, 30);
+
+    const detail = await findMatchById(id, finExacte);
+    expect(detail?.estTermine).toBe(true);
+
+    const resultat = await deciderReservationMatch(id, organisateur.id, false, finExacte);
+    expect(resultat).toEqual({ ok: true, reservationId: null });
+  });
 });
