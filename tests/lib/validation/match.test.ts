@@ -72,6 +72,32 @@ describe("creerMatchSchema", () => {
       creerMatchSchema.safeParse({ ...valide, description: "a".repeat(501) }).success
     ).toBe(false);
   });
+
+  it("rejects an end time before the start time", () => {
+    const resultat = creerMatchSchema.safeParse({
+      ...valide,
+      heureDebut: "20:00",
+      heureFin: "08:00",
+    });
+    expect(resultat.success).toBe(false);
+    if (!resultat.success) {
+      expect(resultat.error.flatten().fieldErrors.heureFin).toEqual([
+        "L'heure de fin doit être après l'heure de début",
+      ]);
+    }
+  });
+
+  it("rejects an end time equal to the start time", () => {
+    expect(
+      creerMatchSchema.safeParse({ ...valide, heureDebut: "18:00", heureFin: "18:00" }).success
+    ).toBe(false);
+  });
+
+  it("accepts an end time strictly after the start time", () => {
+    expect(
+      creerMatchSchema.safeParse({ ...valide, heureDebut: "18:00", heureFin: "18:01" }).success
+    ).toBe(true);
+  });
 });
 
 describe("annulerMatchSchema", () => {

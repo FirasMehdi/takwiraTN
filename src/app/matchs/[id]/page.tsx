@@ -20,9 +20,10 @@ export default async function MatchDetailPage({
 
   // Match créé avant la discussion de groupe automatique : on la crée à la
   // première consultation de sa fiche, plutôt que par une migration de masse.
-  if (!match.conversationId) {
-    await assurerConversationMatch(match.id);
-  }
+  // On capture l'id renvoyé plutôt que de relire match.conversationId, qui
+  // resterait null pour ce rendu — rien ne l'affiche aujourd'hui, mais tout
+  // futur lien vers la discussion doit passer par cette variable locale.
+  const conversationId = match.conversationId ?? (await assurerConversationMatch(match.id));
 
   const session = await getServerSession(authOptions);
   const estOrganisateur = session?.user?.id === match.organisateurId;

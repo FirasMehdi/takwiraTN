@@ -103,6 +103,22 @@ describe("CreerMatchForm", () => {
     );
   });
 
+  it("surfaces a string error (e.g. an expired session) as a general alert", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: "Non authentifié" }),
+    } as Response);
+
+    render(<CreerMatchForm terrains={terrains} />);
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-09-07" } });
+    fireEvent.change(screen.getByLabelText("Heure de début"), { target: { value: "18:00" } });
+    fireEvent.change(screen.getByLabelText("Heure de fin"), { target: { value: "19:30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Créer le match" }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Non authentifié"));
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
   it("disables submit when the selected terrain has no format offers", () => {
     render(
       <CreerMatchForm terrains={[{ id: "t3", nom: "Terrain Vide", ville: "Sfax", formats: [] }]} />

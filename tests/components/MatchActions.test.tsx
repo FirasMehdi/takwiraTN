@@ -83,6 +83,21 @@ describe("MatchActions", () => {
     ).toBeInTheDocument();
   });
 
+  it("disables the confirm button until a reason is chosen, and calls no fetch meanwhile", () => {
+    render(<MatchActions matchId="m1" statut="ouvert" estOrganisateur={true} estInscrit={true} />);
+    fireEvent.click(screen.getByRole("button", { name: "Annuler le match" }));
+
+    const confirmer = screen.getByRole("button", { name: "Confirmer l'annulation" });
+    expect(confirmer).toBeDisabled();
+    fireEvent.click(confirmer);
+    expect(global.fetch).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Motif de l'annulation"), {
+      target: { value: "pas_assez_joueurs" },
+    });
+    expect(confirmer).toBeEnabled();
+  });
+
   it("sends the chosen reason with the cancellation", async () => {
     vi.mocked(global.fetch).mockResolvedValue({ ok: true } as Response);
     render(<MatchActions matchId="m1" statut="ouvert" estOrganisateur={true} estInscrit={true} />);

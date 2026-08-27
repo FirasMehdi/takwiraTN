@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { resetDb } from "../../setup/testDb";
 import { hashPassword } from "@/lib/password";
@@ -12,6 +12,12 @@ import {
   assurerConversationMatch,
   deciderReservationMatch,
 } from "@/lib/matchs/queries";
+
+vi.mock("@/lib/notifications/queries", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/notifications/queries")>();
+  return { ...actual, creerNotification: vi.fn(actual.creerNotification) };
+});
+import { creerNotification } from "@/lib/notifications/queries";
 
 async function creerTerrain() {
   return prisma.terrain.create({
@@ -63,6 +69,7 @@ async function creerMatchDeTest(
 describe("matchs/queries", () => {
   beforeEach(async () => {
     await resetDb();
+    vi.mocked(creerNotification).mockClear();
   });
 
   afterAll(async () => {
@@ -149,6 +156,89 @@ describe("matchs/queries", () => {
     const detail = await findMatchById(id);
     expect(detail?.joueursInscrits).toBe(1);
     expect(detail?.statut).toBe("ouvert");
+  });
+
+  it("keeps statut consistent with the participant count when a leave races a join for the last spot", async () => {
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 10 });
+
+    // Complète le match à 9 joueurs (organisateur inclus).
+    const joueurs = [];
+    for (let i = 0; i < 8; i++) {
+      const joueur = await creerUtilisateur(`j${i}@example.com`);
+      await rejoindreMatch(id, joueur.id);
+      joueurs.push(joueur);
+    }
+    expect(await prisma.matchParticipant.count({ where: { matchId: id } })).toBe(9);
+
+    const partant = joueurs[0];
+    const dixieme = await creerUtilisateur("dixieme@example.com");
+
+    // Invariant qui doit toujours tenir, quel que soit l'entrelacement des
+    // deux transactions : jamais "complet" avec moins de joueursMax inscrits.
+    // Ce test seul ne suffit pas à prouver la présence du verrou (voir le
+    // test suivant, déterministe, pour cela) : rejoindreMatch verrouille déjà
+    // la ligne Match et réévalue sa clause WHERE au réveil, ce qui referme
+    // accidentellement la fenêtre de course même sans le verrou côté
+    // quitterMatch — mais l'invariant lui-même reste ce que le produit exige,
+    // et doit continuer à tenir après le correctif.
+    await Promise.all([rejoindreMatch(id, dixieme.id), quitterMatch(id, partant.id)]);
+
+    const detail = await findMatchById(id);
+    if (detail!.statut === "complet") {
+      expect(detail!.joueursInscrits).toBeGreaterThanOrEqual(detail!.joueursMax);
+    }
+    expect(detail!.joueursInscrits).toBe(9);
+    expect(detail!.statut).toBe("ouvert");
+  });
+
+  it("locks the match row as its very first statement, blocking until a concurrent holder releases it", async () => {
+    // Preuve directe et déterministe du verrou (contrairement au test
+    // précédent, dont l'issue ne dépend pas que de lui) : on prend
+    // manuellement le verrou SELECT … FOR UPDATE sur la ligne Match, puis on
+    // lance quitterMatch. S'il verrouille bien cette ligne en premier lieu,
+    // il doit rester bloqué tant que nous ne relâchons pas notre verrou —
+    // sans le verrou (régression), rien ne le retiendrait : sa première
+    // requête porte sur MatchParticipant, une autre table, et il se
+    // terminerait bien avant que nous ne relâchions le nôtre.
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 10 });
+    const joueur = await creerUtilisateur("j@example.com");
+    await rejoindreMatch(id, joueur.id);
+
+    const ordre: string[] = [];
+    let libererVerrou: () => void = () => {};
+    const verrouLibere = new Promise<void>((resolve) => {
+      libererVerrou = resolve;
+    });
+
+    const detenteur = prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Match" WHERE id = ${id} FOR UPDATE`;
+      await verrouLibere;
+      ordre.push("verrou-relache");
+    });
+
+    // Laisse le temps à la transaction détentrice d'obtenir effectivement le
+    // verrou avant de lancer quitterMatch.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const depart = quitterMatch(id, joueur.id).then((resultat) => {
+      ordre.push("quitterMatch-termine");
+      return resultat;
+    });
+
+    // Laisse à quitterMatch largement le temps de terminer s'il n'attend pas
+    // le verrou : avec le correctif, il doit rester bloqué ici.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(ordre).toEqual([]);
+
+    libererVerrou();
+    const [, resultatDepart] = await Promise.all([detenteur, depart]);
+
+    expect(resultatDepart).toEqual({ ok: true });
+    expect(ordre).toEqual(["verrou-relache", "quitterMatch-termine"]);
   });
 
   it("lets the organizer cancel the match", async () => {
@@ -600,6 +690,58 @@ describe("matchs/queries", () => {
     const notifs = await prisma.notification.findMany({ where: { userId: joueur.id } });
     expect(notifs).toHaveLength(1);
     expect(notifs[0].contenu).toContain("Terrain inondé");
+  });
+
+  it("isolates a notification failure per recipient: the second participant still gets notified", async () => {
+    // Régression : annulerMatch enveloppe chaque appel à creerNotification
+    // dans son propre try/catch, à l'intérieur de la boucle — un échec pour
+    // un destinataire ne doit ni annuler l'annulation déjà écrite, ni empêcher
+    // les notifications suivantes de partir. Un correctif naïf qui englobe
+    // toute la boucle dans un seul try/catch ferait échouer ce test : la
+    // deuxième notification ne serait jamais tentée.
+    const terrain = await creerTerrain();
+    const organisateur = await creerUtilisateur("org@example.com");
+    const { id } = await creerMatchDeTest(terrain.id, organisateur.id, { joueursMax: 10 });
+    const joueurA = await creerUtilisateur("a@example.com");
+    const joueurB = await creerUtilisateur("b@example.com");
+    await rejoindreMatch(id, joueurA.id);
+    await rejoindreMatch(id, joueurB.id);
+
+    vi.mocked(creerNotification).mockRejectedValueOnce(new Error("boom"));
+
+    const resultat = await annulerMatch({
+      matchId: id,
+      userId: organisateur.id,
+      raison: "pas_assez_joueurs",
+    });
+    expect(resultat).toEqual({ ok: true });
+
+    const annulation = await prisma.annulation.findUnique({ where: { matchId: id } });
+    expect(annulation).not.toBeNull();
+    expect((await findMatchById(id))?.statut).toBe("annule");
+
+    // Le premier appel (mocké en échec) ne doit pas empêcher le second : les
+    // deux destinataires doivent avoir été tentés, et celui du second appel
+    // doit avoir réellement reçu sa notification en base.
+    expect(creerNotification).toHaveBeenCalledTimes(2);
+    const appels = vi.mocked(creerNotification).mock.calls;
+    const premierDestinataireId = (appels[0][0] as { userId: string }).userId;
+    const secondDestinataireId = (appels[1][0] as { userId: string }).userId;
+    expect([joueurA.id, joueurB.id]).toContain(premierDestinataireId);
+    expect([joueurA.id, joueurB.id]).toContain(secondDestinataireId);
+    expect(secondDestinataireId).not.toBe(premierDestinataireId);
+
+    const notifsSecond = await prisma.notification.findMany({
+      where: { userId: secondDestinataireId },
+    });
+    expect(notifsSecond).toHaveLength(1);
+    expect(notifsSecond[0].type).toBe("annulation_match");
+
+    // Le premier destinataire, dont l'appel a échoué, n'a rien reçu.
+    const notifsPremier = await prisma.notification.findMany({
+      where: { userId: premierDestinataireId },
+    });
+    expect(notifsPremier).toHaveLength(0);
   });
 
   it("refuses a booking decision before the match is over", async () => {

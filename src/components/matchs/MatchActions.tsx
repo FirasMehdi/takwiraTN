@@ -24,7 +24,10 @@ export function MatchActions({
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState("");
   const [formulaireAnnulation, setFormulaireAnnulation] = useState(false);
-  const [raison, setRaison] = useState<string>(RAISONS_ANNULATION[0].valeur);
+  // Pas de motif présélectionné : le motif est obligatoire, et présélectionner
+  // le premier de la liste laisserait un organisateur qui clique sans
+  // réfléchir attribuer silencieusement un motif qu'il n'a jamais choisi.
+  const [raison, setRaison] = useState<string>("");
   const [raisonAutre, setRaisonAutre] = useState("");
 
   async function appeler(url: string, corps?: unknown) {
@@ -121,6 +124,9 @@ export function MatchActions({
             onChange={(e) => setRaison(e.target.value)}
             className={champClasse}
           >
+            <option value="" disabled>
+              Choisissez un motif
+            </option>
             {RAISONS_ANNULATION.map((option) => (
               <option key={option.valeur} value={option.valeur}>
                 {option.libelle}
@@ -152,7 +158,7 @@ export function MatchActions({
             <button
               type="button"
               onClick={confirmerAnnulation}
-              disabled={envoi}
+              disabled={envoi || raison === ""}
               className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
             >
               Confirmer l&apos;annulation

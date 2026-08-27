@@ -74,7 +74,15 @@ export function CreerMatchForm({ terrains }: { terrains: Terrain[] }) {
       if (!response.ok) {
         try {
           const body = await response.json();
-          setErrors(body.error ?? {});
+          // Le champ error est un objet d'erreurs par champ (validation Zod),
+          // sauf sur certaines erreurs générales (ex. 401 « Non authentifié »)
+          // où l'API renvoie une simple chaîne — auquel cas on l'affiche via
+          // l'alerte générale plutôt que de la faire disparaître en silence.
+          if (typeof body?.error === "string") {
+            setError(body.error);
+          } else {
+            setErrors(body.error ?? {});
+          }
         } catch {
           setError("Une erreur est survenue. Veuillez réessayer.");
         }

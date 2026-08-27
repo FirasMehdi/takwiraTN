@@ -352,6 +352,23 @@ export type QuitterResultat = { ok: true } | { ok: false; raison: "introuvable" 
 
 export async function quitterMatch(matchId: string, userId: string): Promise<QuitterResultat> {
   return prisma.$transaction(async (tx) => {
+    // Même verrou que rejoindreMatch, annulerMatch et deciderReservationMatch :
+    // quitterMatch était la seule mutation du module à lire/écrire le match
+    // sans le verrouiller d'abord. Aujourd'hui la clause WHERE statut du
+    // updateMany plus bas s'auto-corrige si elle se heurte au verrou d'une
+    // autre transaction (elle se réveille sur l'état frais), mais ce n'est
+    // qu'un effet de bord de la façon dont les *autres* mutations verrouillent
+    // déjà — rien ici ne le garantissait. Prendre le même verrou en premier
+    // rend quitterMatch sûr par construction, pas par accident, et évite le
+    // second aller-retour findUnique ci-dessous.
+    const verrou = await tx.$queryRaw<
+      { organisateurId: string; conversationId: string | null }[]
+    >`
+      SELECT "organisateurId", "conversationId" FROM "Match" WHERE id = ${matchId} FOR UPDATE
+    `;
+    const match = verrou[0];
+    if (!match) return { ok: false, raison: "introuvable" } as const;
+
     const participation = await tx.matchParticipant.findUnique({
       where: { matchId_userId: { matchId, userId } },
     });
@@ -359,15 +376,10 @@ export async function quitterMatch(matchId: string, userId: string): Promise<Qui
 
     await tx.matchParticipant.delete({ where: { id: participation.id } });
 
-    const match = await tx.match.findUnique({
-      where: { id: matchId },
-      select: { organisateurId: true, conversationId: true },
-    });
-
     // Quitter le match, c'est aussi quitter sa discussion — sauf pour
     // l'organisateur, qui reste dans le fil qu'il anime même s'il libère sa
     // place de joueur.
-    if (match?.conversationId && match.organisateurId !== userId) {
+    if (match.conversationId && match.organisateurId !== userId) {
       await tx.conversationParticipant.deleteMany({
         where: { conversationId: match.conversationId, userId },
       });
