@@ -16,7 +16,19 @@ export default async function AdminProfilPage() {
   });
 
   if (!profile) {
-    redirect("/connexion");
+    return (
+      <div className="flex w-full max-w-sm flex-col gap-4 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <h1 className="px-4 pt-6 text-center text-xl font-semibold text-anthracite">
+          Mon profil administrateur
+        </h1>
+        <p className="px-4 text-center text-sm text-anthracite">
+          Ce compte administrateur n&apos;a pas de profil joueur associé.
+        </p>
+        <div className="px-4 pb-6">
+          <DeconnexionButton />
+        </div>
+      </div>
+    );
   }
 
   return (

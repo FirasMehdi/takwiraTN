@@ -52,7 +52,11 @@ export function AdminJoueurForm({ joueurId, profile }: { joueurId: string; profi
       if (!response.ok) {
         try {
           const body = await response.json();
-          setErrors(body.error ?? {});
+          if (typeof body?.error === "string") {
+            setError(body.error);
+          } else {
+            setErrors(body.error ?? {});
+          }
         } catch {
           setError("Une erreur est survenue. Veuillez réessayer.");
         }

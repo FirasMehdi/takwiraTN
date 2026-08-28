@@ -59,6 +59,18 @@ describe("AdminJoueurForm", () => {
     expect(await screen.findByText("Le prénom est requis")).toBeInTheDocument();
   });
 
+  it("shows the string error message returned by the API on a non-400 response", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: "Joueur introuvable" }),
+    } as Response);
+
+    render(<AdminJoueurForm joueurId="j1" profile={baseProfile} />);
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    expect(await screen.findByText("Joueur introuvable")).toBeInTheDocument();
+  });
+
   it("shows an error and re-enables the button when the network call rejects", async () => {
     vi.mocked(global.fetch).mockRejectedValue(new Error("network down"));
 
