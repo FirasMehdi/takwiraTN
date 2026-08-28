@@ -177,11 +177,12 @@ describe("matchs/queries", () => {
 
     // Invariant qui doit toujours tenir, quel que soit l'entrelacement des
     // deux transactions : jamais "complet" avec moins de joueursMax inscrits.
-    // Ce test seul ne suffit pas à prouver la présence du verrou (voir le
-    // test suivant, déterministe, pour cela) : rejoindreMatch verrouille déjà
-    // la ligne Match et réévalue sa clause WHERE au réveil, ce qui referme
-    // accidentellement la fenêtre de course même sans le verrou côté
-    // quitterMatch — mais l'invariant lui-même reste ce que le produit exige,
+    // Ce test seul ne prouve pas la nécessité du verrou : Promise.all lance
+    // rejoindreMatch en premier, qui commit généralement statut = 'complet'
+    // avant que quitterMatch ne prenne son instantané — l'entrelacement
+    // dépend donc du timing et reste habituellement bénin même sans verrou
+    // côté quitterMatch. Voir le test suivant, déterministe, pour la preuve
+    // réelle du verrou. L'invariant lui-même reste ce que le produit exige,
     // et doit continuer à tenir après le correctif.
     await Promise.all([rejoindreMatch(id, dixieme.id), quitterMatch(id, partant.id)]);
 

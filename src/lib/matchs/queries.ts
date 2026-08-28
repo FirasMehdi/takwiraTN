@@ -354,13 +354,14 @@ export async function quitterMatch(matchId: string, userId: string): Promise<Qui
   return prisma.$transaction(async (tx) => {
     // Même verrou que rejoindreMatch, annulerMatch et deciderReservationMatch :
     // quitterMatch était la seule mutation du module à lire/écrire le match
-    // sans le verrouiller d'abord. Aujourd'hui la clause WHERE statut du
-    // updateMany plus bas s'auto-corrige si elle se heurte au verrou d'une
-    // autre transaction (elle se réveille sur l'état frais), mais ce n'est
-    // qu'un effet de bord de la façon dont les *autres* mutations verrouillent
-    // déjà — rien ici ne le garantissait. Prendre le même verrou en premier
-    // rend quitterMatch sûr par construction, pas par accident, et évite le
-    // second aller-retour findUnique ci-dessous.
+    // sans le verrouiller d'abord — et c'était réellement racy : un UPDATE
+    // dont la clause WHERE ne correspond pas saute la ligne dès le nœud de
+    // scan, sans la verrouiller ni attendre ; il n'y a rien dont « se
+    // réveiller sur l'état frais », donc aucun rattrapage possible. quitterMatch
+    // lit et écrit Match comme les autres mutations du module et doit se
+    // sérialiser contre elles au même titre qu'elles se sérialisent déjà
+    // entre elles. Prendre le même verrou en premier rend quitterMatch sûr
+    // par construction, et évite le second aller-retour findUnique ci-dessous.
     const verrou = await tx.$queryRaw<
       { organisateurId: string; conversationId: string | null }[]
     >`
