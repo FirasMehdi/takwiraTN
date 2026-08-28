@@ -184,8 +184,8 @@ export async function modifierTerrain(
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
       type: input.type,
-      dureeCreneauMinutes: input.dureeCreneauMinutes ?? 90,
-      equipements: input.equipements ?? [],
+      ...(input.dureeCreneauMinutes !== undefined && { dureeCreneauMinutes: input.dureeCreneauMinutes }),
+      ...(input.equipements !== undefined && { equipements: input.equipements }),
     },
   });
   return { ok: true };

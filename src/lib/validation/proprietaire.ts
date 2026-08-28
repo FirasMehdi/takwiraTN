@@ -60,7 +60,10 @@ export const terrainBaseSchema = z.object({
 export const creerTerrainSchema = terrainBaseSchema.extend({
   formats: z
     .array(formatOffreSchema)
-    .min(1, "Il faut proposer au moins un format avec sa capacité et son prix"),
+    .min(1, "Il faut proposer au moins un format avec sa capacité et son prix")
+    .refine((f) => new Set(f.map((x) => x.format)).size === f.length, {
+      message: "Chaque format ne peut être proposé qu'une fois",
+    }),
   horaires: z
     .array(horaireSchema)
     .min(1, "Il faut renseigner au moins un horaire d'ouverture"),

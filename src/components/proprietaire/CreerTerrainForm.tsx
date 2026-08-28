@@ -22,8 +22,10 @@ const JOURS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "S
 type LigneFormat = { format: (typeof FORMATS)[number]; capacite: string; prixDinars: string };
 type LigneHoraire = { jourSemaine: number; ouvre: string; ferme: string };
 
-function ligneFormatVide(): LigneFormat {
-  return { format: "cinq", capacite: "", prixDinars: "" };
+function ligneFormatVide(formatsExistants: LigneFormat[] = []): LigneFormat {
+  const utilises = new Set(formatsExistants.map((f) => f.format));
+  const format = FORMATS.find((f) => !utilises.has(f)) ?? FORMATS[0];
+  return { format, capacite: "", prixDinars: "" };
 }
 
 function ligneHoraireVide(): LigneHoraire {
@@ -41,7 +43,7 @@ export function CreerTerrainForm() {
   const [type, setType] = useState<(typeof TYPES)[number]["value"]>("gazon_synthetique");
   const [dureeCreneauMinutes, setDureeCreneauMinutes] = useState("90");
   const [equipements, setEquipements] = useState<string[]>([]);
-  const [formats, setFormats] = useState<LigneFormat[]>([ligneFormatVide()]);
+  const [formats, setFormats] = useState<LigneFormat[]>([ligneFormatVide([])]);
   const [horaires, setHoraires] = useState<LigneHoraire[]>([ligneHoraireVide()]);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [error, setError] = useState("");
@@ -285,7 +287,7 @@ export function CreerTerrainForm() {
         </div>
         <button
           type="button"
-          onClick={() => setFormats((prev) => [...prev, ligneFormatVide()])}
+          onClick={() => setFormats((prev) => [...prev, ligneFormatVide(prev)])}
           className="mt-2 text-sm font-semibold text-primary hover:underline"
         >
           + Ajouter un format

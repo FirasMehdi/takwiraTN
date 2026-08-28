@@ -17,6 +17,18 @@ const FORMATS_DISPONIBLES: FormatEquipe[] = ["quatre", "cinq", "six", "sept", "h
 const champClasse =
   "mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
 
+function messageErreur(body: unknown): string {
+  if (body && typeof body === "object" && "error" in body) {
+    const err = (body as { error: unknown }).error;
+    if (typeof err === "string") return err;
+    if (err && typeof err === "object") {
+      const premier = Object.values(err as Record<string, string[]>)[0];
+      if (Array.isArray(premier) && typeof premier[0] === "string") return premier[0];
+    }
+  }
+  return "Une erreur est survenue.";
+}
+
 export function FormatsManager({ terrainId, formats }: { terrainId: string; formats: FormatLigne[] }) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -26,8 +38,10 @@ export function FormatsManager({ terrainId, formats }: { terrainId: string; form
   // Find first format not in existing formats, or default to "quatre"
   const formatsInUse = new Set(formats.map(f => f.format));
   const defaultFormat = FORMATS_DISPONIBLES.find(f => !formatsInUse.has(f)) ?? "quatre";
+  const disponibles = FORMATS_DISPONIBLES.filter((f) => !formatsInUse.has(f));
 
   const [nouveauFormat, setNouveauFormat] = useState<FormatEquipe>(defaultFormat);
+  const formatChoisi = disponibles.includes(nouveauFormat) ? nouveauFormat : (disponibles[0] ?? FORMATS_DISPONIBLES[0]);
   const [nouvelleCapacite, setNouvelleCapacite] = useState("");
   const [nouveauPrixDinars, setNouveauPrixDinars] = useState("");
   const [erreur, setErreur] = useState("");
@@ -54,7 +68,7 @@ export function FormatsManager({ terrainId, formats }: { terrainId: string; form
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        setErreur(typeof body?.error === "string" ? body.error : "Une erreur est survenue.");
+        setErreur(messageErreur(body));
         return;
       }
       setEditingId(null);
@@ -76,7 +90,7 @@ export function FormatsManager({ terrainId, formats }: { terrainId: string; form
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        setErreur(typeof body?.error === "string" ? body.error : "Une erreur est survenue.");
+        setErreur(messageErreur(body));
         return;
       }
       router.refresh();
@@ -95,14 +109,14 @@ export function FormatsManager({ terrainId, formats }: { terrainId: string; form
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          format: nouveauFormat,
+          format: formatChoisi,
           capacite: Number(nouvelleCapacite),
           prixParCreneau: Math.round(Number(nouveauPrixDinars) * 1000),
         }),
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        setErreur(typeof body?.error === "string" ? body.error : "Une erreur est survenue.");
+        setErreur(messageErreur(body));
         return;
       }
       setNouvelleCapacite("");
@@ -194,17 +208,17 @@ export function FormatsManager({ terrainId, formats }: { terrainId: string; form
         ))}
       </ul>
 
-      {formatsInUse.size < FORMATS_DISPONIBLES.length ? (
+      {disponibles.length > 0 ? (
         <div className="flex flex-wrap items-end gap-2 rounded-lg bg-gray-50 p-2">
           <div>
             <label htmlFor="nouveau-format" className="block text-xs text-gray-600">Format</label>
             <select
               id="nouveau-format"
-              value={nouveauFormat}
+              value={formatChoisi}
               onChange={(e) => setNouveauFormat(e.target.value as FormatEquipe)}
               className={champClasse}
             >
-              {FORMATS_DISPONIBLES.filter(f => !formats.some(fmt => fmt.format === f)).map((f) => (
+              {disponibles.map((f) => (
                 <option key={f} value={f}>{libelleFormat(f)}</option>
               ))}
             </select>

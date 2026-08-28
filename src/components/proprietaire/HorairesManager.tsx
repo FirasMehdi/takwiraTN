@@ -14,6 +14,18 @@ function ligneVide(): HoraireLigne {
   return { jourSemaine: 1, ouvre: "08:00", ferme: "22:00" };
 }
 
+function messageErreur(body: unknown): string {
+  if (body && typeof body === "object" && "error" in body) {
+    const err = (body as { error: unknown }).error;
+    if (typeof err === "string") return err;
+    if (err && typeof err === "object") {
+      const premier = Object.values(err as Record<string, string[]>)[0];
+      if (Array.isArray(premier) && typeof premier[0] === "string") return premier[0];
+    }
+  }
+  return "Une erreur est survenue.";
+}
+
 export function HorairesManager({
   terrainId,
   horaires: horairesInitiaux,
@@ -45,7 +57,7 @@ export function HorairesManager({
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        setErreur(typeof body?.error === "string" ? body.error : "Une erreur est survenue.");
+        setErreur(messageErreur(body));
         return;
       }
       setSucces(true);
