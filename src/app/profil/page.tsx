@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -25,6 +26,14 @@ export default async function ProfilPage() {
         <h1 className="px-4 pt-6 text-center text-xl font-semibold text-anthracite">Mon profil</h1>
         <ProfilForm profile={profile} />
         <div className="px-4 pb-6">
+          {session.user.role === "proprietaire" && (
+            <Link
+              href="/proprietaire"
+              className="mb-3 block rounded-lg border border-primary px-4 py-3 text-center font-semibold text-primary transition hover:bg-primary/5"
+            >
+              Gérer mes terrains
+            </Link>
+          )}
           <DeconnexionButton />
         </div>
       </div>
