@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { email, password, prenom, ville } = parsed.data;
+  const { email, password, prenom, ville, estProprietaire } = parsed.data;
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
@@ -38,10 +38,13 @@ export async function POST(request: Request) {
   }
 
   const passwordHash = await hashPassword(password);
+  // Le rôle est TOUJOURS dérivé de ce booléen validé côté serveur — jamais
+  // d'un champ `role` envoyé par le client, qui ne serait pas fiable.
   const user = await prisma.user.create({
     data: {
       email,
       passwordHash,
+      role: estProprietaire ? "proprietaire" : "joueur",
       profile: { create: { prenom, ville } },
     },
   });

@@ -14,5 +14,6 @@ export const config = {
     "/matchs/creer/:path*",
     "/amis/:path*",
     "/admin/:path*",
+    "/proprietaire/:path*",
   ],
 };

@@ -105,4 +105,49 @@ describe("POST /api/inscription", () => {
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBeTruthy();
   });
+
+  it("assigns the proprietaire role when estProprietaire is true", async () => {
+    const response = await POST(
+      makeRequest({
+        email: "hoster@example.com",
+        password: "motdepasse123",
+        prenom: "Sami",
+        ville: "Tunis",
+        estProprietaire: true,
+      })
+    );
+    expect(response.status).toBe(201);
+    const user = await prisma.user.findUnique({ where: { email: "hoster@example.com" } });
+    expect(user?.role).toBe("proprietaire");
+  });
+
+  it("assigns the joueur role by default", async () => {
+    const response = await POST(
+      makeRequest({
+        email: "joueur@example.com",
+        password: "motdepasse123",
+        prenom: "Sami",
+        ville: "Tunis",
+      })
+    );
+    expect(response.status).toBe(201);
+    const user = await prisma.user.findUnique({ where: { email: "joueur@example.com" } });
+    expect(user?.role).toBe("joueur");
+  });
+
+  it("ignores a client-supplied role and derives it from estProprietaire only", async () => {
+    const response = await POST(
+      makeRequest({
+        email: "sournois@example.com",
+        password: "motdepasse123",
+        prenom: "Sami",
+        ville: "Tunis",
+        estProprietaire: false,
+        role: "administrateur",
+      })
+    );
+    expect(response.status).toBe(201);
+    const user = await prisma.user.findUnique({ where: { email: "sournois@example.com" } });
+    expect(user?.role).toBe("joueur");
+  });
 });

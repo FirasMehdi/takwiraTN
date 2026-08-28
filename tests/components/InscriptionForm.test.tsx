@@ -62,4 +62,41 @@ describe("InscriptionForm", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Créer mon compte" })).not.toBeDisabled();
   });
+
+  it("submits estProprietaire=true when the checkbox is checked", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "1", email: "sami@example.com" }),
+    } as Response);
+
+    render(<InscriptionForm />);
+    fireEvent.change(screen.getByLabelText("Prénom"), { target: { value: "Sami" } });
+    fireEvent.change(screen.getByLabelText("Ville"), { target: { value: "Tunis" } });
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "sami@example.com" } });
+    fireEvent.change(screen.getByLabelText("Mot de passe"), { target: { value: "motdepasse123" } });
+    fireEvent.click(screen.getByLabelText("Es-tu propriétaire d'un terrain ?"));
+    fireEvent.click(screen.getByRole("button", { name: "Créer mon compte" }));
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+    const body = JSON.parse(vi.mocked(global.fetch).mock.calls[0][1]?.body as string);
+    expect(body.estProprietaire).toBe(true);
+  });
+
+  it("submits estProprietaire=false by default", async () => {
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "1", email: "sami@example.com" }),
+    } as Response);
+
+    render(<InscriptionForm />);
+    fireEvent.change(screen.getByLabelText("Prénom"), { target: { value: "Sami" } });
+    fireEvent.change(screen.getByLabelText("Ville"), { target: { value: "Tunis" } });
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "sami@example.com" } });
+    fireEvent.change(screen.getByLabelText("Mot de passe"), { target: { value: "motdepasse123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Créer mon compte" }));
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+    const body = JSON.parse(vi.mocked(global.fetch).mock.calls[0][1]?.body as string);
+    expect(body.estProprietaire).toBe(false);
+  });
 });
