@@ -194,53 +194,57 @@ export function FormatsManager({ terrainId, formats }: { terrainId: string; form
         ))}
       </ul>
 
-      <div className="flex flex-wrap items-end gap-2 rounded-lg bg-gray-50 p-2">
-        <div>
-          <label htmlFor="nouveau-format" className="block text-xs text-gray-600">Format</label>
-          <select
-            id="nouveau-format"
-            value={nouveauFormat}
-            onChange={(e) => setNouveauFormat(e.target.value as FormatEquipe)}
-            className={champClasse}
+      {formatsInUse.size < FORMATS_DISPONIBLES.length ? (
+        <div className="flex flex-wrap items-end gap-2 rounded-lg bg-gray-50 p-2">
+          <div>
+            <label htmlFor="nouveau-format" className="block text-xs text-gray-600">Format</label>
+            <select
+              id="nouveau-format"
+              value={nouveauFormat}
+              onChange={(e) => setNouveauFormat(e.target.value as FormatEquipe)}
+              className={champClasse}
+            >
+              {FORMATS_DISPONIBLES.filter(f => !formats.some(fmt => fmt.format === f)).map((f) => (
+                <option key={f} value={f}>{libelleFormat(f)}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="nouvelle-capacite" className="block text-xs text-gray-600">Capacité</label>
+            <input
+              id="nouvelle-capacite"
+              type="number"
+              min={2}
+              max={30}
+              value={nouvelleCapacite}
+              onChange={(e) => setNouvelleCapacite(e.target.value)}
+              className={champClasse}
+            />
+          </div>
+          <div>
+            <label htmlFor="nouveau-prix" className="block text-xs text-gray-600">Prix / créneau (DT)</label>
+            <input
+              id="nouveau-prix"
+              type="number"
+              min={0}
+              step="0.001"
+              value={nouveauPrixDinars}
+              onChange={(e) => setNouveauPrixDinars(e.target.value)}
+              className={champClasse}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={ajouter}
+            disabled={envoi || !nouvelleCapacite || !nouveauPrixDinars}
+            className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            {FORMATS_DISPONIBLES.filter(f => !formats.some(fmt => fmt.format === f)).map((f) => (
-              <option key={f} value={f}>{libelleFormat(f)}</option>
-            ))}
-          </select>
+            Ajouter
+          </button>
         </div>
-        <div>
-          <label htmlFor="nouvelle-capacite" className="block text-xs text-gray-600">Capacité</label>
-          <input
-            id="nouvelle-capacite"
-            type="number"
-            min={2}
-            max={30}
-            value={nouvelleCapacite}
-            onChange={(e) => setNouvelleCapacite(e.target.value)}
-            className={champClasse}
-          />
-        </div>
-        <div>
-          <label htmlFor="nouveau-prix" className="block text-xs text-gray-600">Prix / créneau (DT)</label>
-          <input
-            id="nouveau-prix"
-            type="number"
-            min={0}
-            step="0.001"
-            value={nouveauPrixDinars}
-            onChange={(e) => setNouveauPrixDinars(e.target.value)}
-            className={champClasse}
-          />
-        </div>
-        <button
-          type="button"
-          onClick={ajouter}
-          disabled={envoi || !nouvelleCapacite || !nouveauPrixDinars}
-          className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          Ajouter
-        </button>
-      </div>
+      ) : (
+        <p className="text-sm text-gray-600">Tous les formats disponibles sont déjà configurés pour ce terrain.</p>
+      )}
     </div>
   );
 }
