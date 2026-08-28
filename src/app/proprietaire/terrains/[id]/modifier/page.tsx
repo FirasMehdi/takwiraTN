@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { requireRole } from "@/lib/auth/authorization";
 import { trouverTerrainProprietaire } from "@/lib/terrains/gestion";
 import { ModifierTerrainForm } from "@/components/proprietaire/ModifierTerrainForm";
+import { FormatsManager } from "@/components/proprietaire/FormatsManager";
 import { SupprimerTerrainButton } from "@/components/proprietaire/SupprimerTerrainButton";
 
 export default async function ModifierTerrainPage({
@@ -51,6 +52,13 @@ export default async function ModifierTerrainPage({
             dureeCreneauMinutes={terrain.dureeCreneauMinutes ?? 90}
             equipements={terrain.equipements ?? []}
           />
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-semibold text-anthracite">Formats et tarifs</h2>
+        <div className="mt-3">
+          <FormatsManager terrainId={terrain.id} formats={terrain.formats} />
         </div>
       </section>
     </main>
